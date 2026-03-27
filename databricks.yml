@@ -1,0 +1,68 @@
+bundle:
+  name: uc-governance-workshop
+
+variables:
+  catalog_name:
+    description: The catalog name for the workshop environment
+    default: lumina_technologies
+  cluster_id:
+    description: Cluster ID for running setup/teardown jobs
+    default: ""
+
+workspace:
+  root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${var.host}
+    variables:
+      host:
+        description: Databricks workspace URL for development
+        default: ""
+
+  workshop:
+    workspace:
+      host: ${var.host}
+    variables:
+      host:
+        description: Databricks workspace URL for workshop delivery
+        default: ""
+
+sync:
+  include:
+    - "workshop/**"
+  exclude:
+    - "workshop/docs/**"
+    - "workshop/data/output/**"
+    - "**/__pycache__/**"
+    - "**/.DS_Store"
+
+resources:
+  jobs:
+    setup_workshop:
+      name: "[${bundle.target}] UC Workshop — Setup"
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: workshop/data/generate_csv_data.py
+          existing_cluster_id: ${var.cluster_id}
+
+        - task_key: provision_workspace
+          depends_on:
+            - task_key: generate_data
+          notebook_task:
+            notebook_path: workshop/setup/00_setup_workspace.py
+            base_parameters:
+              repo_data_path: ${workspace.root_path}/files/workshop/data/output
+          existing_cluster_id: ${var.cluster_id}
+
+    teardown_workshop:
+      name: "[${bundle.target}] UC Workshop — Teardown"
+      tasks:
+        - task_key: teardown
+          notebook_task:
+            notebook_path: workshop/setup/99_teardown_workspace.py
+          existing_cluster_id: ${var.cluster_id}
