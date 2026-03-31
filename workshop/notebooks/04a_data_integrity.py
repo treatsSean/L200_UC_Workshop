@@ -5,13 +5,13 @@
 # MAGIC
 # MAGIC **Duration:** 9 minutes
 # MAGIC
-# MAGIC **Purpose:** Demonstrate that Unity Catalog is not just an access control layer — it is the control plane for data integrity on open table formats (Delta and Iceberg). Multi-table ACID transactions and catalog-enforced foreign key constraints give you relational database guarantees on your lakehouse data.
+# MAGIC **Purpose:** Demonstrate that Unity Catalog is not just an access control layer — it is the control plane for data integrity on open table formats (Delta and Iceberg). ACID atomicity, Time Travel, and catalog-enforced foreign key constraints give you relational database guarantees on your lakehouse data.
 # MAGIC
 # MAGIC **What you will do:**
 # MAGIC - Run silver layer transformations to create cleaned, typed tables
 # MAGIC - Verify row counts across the silver layer
-# MAGIC - Execute a successful multi-table ACID transaction (UPDATE + MERGE)
-# MAGIC - Observe a failing transaction roll back atomically
+# MAGIC - Use Time Travel to inspect table history and verify atomic writes
+# MAGIC - Use RESTORE to roll back a table to a previous version
 # MAGIC - Add a foreign key constraint between two silver tables
 # MAGIC - Attempt a foreign key violation and observe the enforcement
 
@@ -88,7 +88,7 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Create the `transaction_totals` aggregation table. This derived table holds per-customer totals and will be kept in sync with `cleaned_transactions` using a MERGE later in this section.
+# MAGIC Create the `transaction_totals` aggregation table. This derived table holds per-customer totals used in downstream gold layer joins.
 
 # COMMAND ----------
 
@@ -123,80 +123,95 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 3: Successful Multi-Table ACID Transaction
+# MAGIC ## Step 3: ACID Atomicity & Time Travel
 # MAGIC
-# MAGIC Delta Lake supports multi-statement transactions via `BEGIN TRANSACTION` / `COMMIT`. When you wrap multiple DML operations in a transaction, **all of them succeed together or none of them persist** — this is the atomicity guarantee.
+# MAGIC Every write to a Delta table — INSERT, UPDATE, DELETE, MERGE — is an atomic transaction recorded in the Delta transaction log. This means each operation either fully succeeds or has no effect. There is no partial write state that readers can observe.
 # MAGIC
-# MAGIC In this example we:
-# MAGIC 1. Apply a 5% price increase to all electronics purchases in `cleaned_transactions`
-# MAGIC 2. Immediately MERGE the updated totals back into `transaction_totals`
+# MAGIC Delta Lake's **Time Travel** capability lets you query or restore any previous version of a table. This is powered by the transaction log: every committed version is retained and addressable by version number or timestamp.
 # MAGIC
-# MAGIC Because both statements are inside the same transaction, readers will never see a state where the transaction amounts have changed but the totals have not yet been updated.
+# MAGIC In this step we will:
+# MAGIC 1. Check the current version of `cleaned_transactions`
+# MAGIC 2. Apply a 5% price increase to electronics purchases
+# MAGIC 3. Use Time Travel to query the table **before** the update and confirm the old values are still accessible
+
+# COMMAND ----------
+
+# Capture the current version number before making changes.
+# This ensures the Time Travel and RESTORE queries reference the correct version
+# regardless of how many times the notebook has been run.
+pre_update_version = spark.sql(
+    "DESCRIBE HISTORY lumina_technologies.silver.cleaned_transactions LIMIT 1"
+).collect()[0]["version"]
+
+print(f"Current version before update: {pre_update_version}")
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC BEGIN TRANSACTION;
-# MAGIC
+# MAGIC -- Check the current table history before making changes
+# MAGIC DESCRIBE HISTORY lumina_technologies.silver.cleaned_transactions LIMIT 5;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Apply a 5% price increase to electronics purchases
 # MAGIC UPDATE lumina_technologies.silver.cleaned_transactions
 # MAGIC SET amount = amount * 1.05
 # MAGIC WHERE transaction_type = 'purchase' AND product_category = 'electronics';
-# MAGIC
-# MAGIC MERGE INTO lumina_technologies.silver.transaction_totals AS t
-# MAGIC USING (
-# MAGIC   SELECT customer_id, COUNT(*) AS total_transactions, SUM(amount) AS total_amount
-# MAGIC   FROM lumina_technologies.silver.cleaned_transactions
-# MAGIC   GROUP BY customer_id
-# MAGIC ) AS s ON t.customer_id = s.customer_id
-# MAGIC WHEN MATCHED THEN UPDATE SET
-# MAGIC   t.total_transactions = s.total_transactions,
-# MAGIC   t.total_amount = s.total_amount;
-# MAGIC
-# MAGIC COMMIT;
+
+# COMMAND ----------
+
+# Compare current vs. previous version using Time Travel
+current_df = spark.sql("""
+    SELECT 'current' AS version, AVG(amount) AS avg_electronics_amount
+    FROM lumina_technologies.silver.cleaned_transactions
+    WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+""")
+
+previous_df = spark.sql(f"""
+    SELECT 'previous' AS version, AVG(amount) AS avg_electronics_amount
+    FROM lumina_technologies.silver.cleaned_transactions VERSION AS OF {pre_update_version}
+    WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+""")
+
+display(current_df.union(previous_df))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Both operations committed together. The `transaction_totals` table is now consistent with the updated `cleaned_transactions` amounts. No reader could observe the intermediate state where only one of the two tables had changed.
+# MAGIC The query above shows both the current and previous average amounts side by side. The previous version is unchanged — Delta Lake retains the full history of every committed transaction.
 # MAGIC
-# MAGIC > **Key point:** This atomicity guarantee applies to open Delta format tables — it is not a feature of a proprietary storage layer. Unity Catalog coordinates the transaction log entries across both tables within the same commit boundary.
+# MAGIC > **Key point:** Time Travel works on open Delta format tables. Every version is a consistent, atomic snapshot — there is no way to observe a partially written state.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 4: Failing Multi-Table Transaction (Rollback)
+# MAGIC ## Step 4: Rollback with RESTORE
 # MAGIC
-# MAGIC Now we intentionally cause a transaction to fail. The second statement references a column that does not exist (`nonexistent_column`). This will cause an error, and Delta Lake will roll back the entire transaction — including the first UPDATE that would otherwise have succeeded.
+# MAGIC Sometimes you need to undo a change entirely — a bad ETL run, an accidental UPDATE, or a data quality issue discovered after the fact. Delta Lake's `RESTORE` command reverts a table to a previous version, and the restore itself is recorded as a new transaction in the log.
+# MAGIC
+# MAGIC This is a governed operation: only principals with `MODIFY` on the table can execute a RESTORE, and the action is fully auditable through the table history.
+
+# COMMAND ----------
+
+# Restore the table to the version captured before the price increase
+spark.sql(f"RESTORE TABLE lumina_technologies.silver.cleaned_transactions TO VERSION AS OF {pre_update_version}")
+print(f"Restored to version {pre_update_version}")
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC BEGIN TRANSACTION;
-# MAGIC
-# MAGIC UPDATE lumina_technologies.silver.cleaned_transactions
-# MAGIC SET amount = amount * 1.10
-# MAGIC WHERE transaction_type = 'refund';
-# MAGIC
-# MAGIC UPDATE lumina_technologies.silver.transaction_totals
-# MAGIC SET nonexistent_column = 'fail';
-# MAGIC
-# MAGIC COMMIT;
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC **Expected result:** The cell above throws an error on the second UPDATE.
-# MAGIC
-# MAGIC Notice both updates were rolled back. The refund amount change did not persist. Run the verification query below to confirm the refund amounts are unchanged from the committed state after Step 3.
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC -- Spot-check: refund amounts should be unchanged from the Step 3 committed state
-# MAGIC SELECT transaction_type, AVG(amount) AS avg_amount
+# MAGIC -- Verify the restore: electronics amounts should be back to their original values
+# MAGIC SELECT transaction_type, product_category, AVG(amount) AS avg_amount
 # MAGIC FROM lumina_technologies.silver.cleaned_transactions
-# MAGIC GROUP BY transaction_type
-# MAGIC ORDER BY transaction_type;
+# MAGIC WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+# MAGIC GROUP BY transaction_type, product_category;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- The history now shows the RESTORE as the latest operation
+# MAGIC DESCRIBE HISTORY lumina_technologies.silver.cleaned_transactions LIMIT 5;
 
 # COMMAND ----------
 
@@ -248,14 +263,15 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC | Capability | What happened |
 # MAGIC |---|---|
 # MAGIC | Silver layer transformations | Cleaned, typed, and filtered bronze data into four silver tables |
-# MAGIC | Multi-table ACID (success) | UPDATE + MERGE committed atomically; no intermediate state was visible |
-# MAGIC | Multi-table ACID (rollback) | A failing statement caused the entire transaction to roll back |
+# MAGIC | Time Travel | Queried a previous table version to compare pre- and post-update state |
+# MAGIC | RESTORE rollback | Reverted the table to a prior version; the restore was recorded as a new transaction |
 # MAGIC | Foreign key constraint | UC rejected an INSERT that violated referential integrity |
 # MAGIC
 # MAGIC **The bigger picture:**
 # MAGIC
 # MAGIC Unity Catalog manages catalog-level tables in open Delta format. This means:
 # MAGIC - ACID guarantees are not tied to a proprietary storage engine — they come from the Delta transaction log coordinated by UC
+# MAGIC - Time Travel and RESTORE give you full auditability and the ability to recover from bad writes without backup infrastructure
 # MAGIC - Foreign key constraints are enforced by the catalog control plane, applying uniformly to all compute and principals
 # MAGIC - Your data integrity rules live in one place (the catalog) rather than scattered across application code, ETL pipelines, or database-specific triggers
 # MAGIC

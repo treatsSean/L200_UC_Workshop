@@ -39,9 +39,11 @@ RESTRICTED = f"{CATALOG}.restricted"
 VOLUME_PATH = f"/Volumes/{CATALOG}/bronze/raw_files"
 
 # Path to CSV files in the workspace repo.
-# IMPORTANT: Update this to match where the repo is cloned in your workspace.
-# Typical pattern: /Workspace/Users/<your-email>/<repo-name>/workshop/data/output
-dbutils.widgets.text("repo_data_path", "/Workspace/Repos/<your-username>/<repo-name>/workshop/data/output", "CSV Source Path")
+# Dynamically resolve the current user to build the default path.
+_current_user = spark.sql("SELECT current_user()").collect()[0][0]
+_default_data_path = f"/Workspace/Users/{_current_user}/L200_UC_Workshop/workshop/data/output"
+
+dbutils.widgets.text("repo_data_path", _default_data_path, "CSV Source Path")
 REPO_DATA_PATH = dbutils.widgets.get("repo_data_path")
 
 # Fail fast if the path doesn't look right
@@ -73,7 +75,28 @@ except Exception:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Create Managed Volume and Upload CSV Files
+# MAGIC ## 2. Create Group for Ownership & Grant Demos
+# MAGIC
+# MAGIC Create the `data_platform_admins` group early so it can be referenced in
+# MAGIC grants that follow. This group is used across multiple sections for
+# MAGIC ownership transfer, privilege inspection, and ABAC policy evaluation.
+
+# COMMAND ----------
+
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()
+
+try:
+    w.groups.create(display_name="data_platform_admins")
+    print("Group 'data_platform_admins' created.")
+except Exception as e:
+    print(f"Group 'data_platform_admins' already exists (or could not be created): {e}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3. Create Managed Volume and Upload CSV Files
 
 # COMMAND ----------
 
@@ -104,7 +127,7 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Load Bronze Tables from CSV
+# MAGIC ## 4. Load Bronze Tables from CSV
 
 # COMMAND ----------
 
@@ -142,7 +165,7 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Create Silver Tables (Cleaned / Transformed)
+# MAGIC ## 5. Create Silver Tables (Cleaned / Transformed)
 
 # COMMAND ----------
 
@@ -198,23 +221,19 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- Aggregated transaction totals per customer (used in Section 4a multi-table demo)
+# MAGIC -- Aggregated transaction totals per customer (used in gold layer joins)
 # MAGIC CREATE OR REPLACE TABLE lumina_technologies.silver.transaction_totals AS
 # MAGIC SELECT
 # MAGIC   customer_id,
-# MAGIC   COUNT(*)                    AS transaction_count,
-# MAGIC   SUM(amount)                 AS total_amount,
-# MAGIC   AVG(amount)                 AS avg_amount,
-# MAGIC   MIN(transaction_date)       AS first_transaction_date,
-# MAGIC   MAX(transaction_date)       AS last_transaction_date,
-# MAGIC   COUNT(DISTINCT product_category) AS distinct_categories
+# MAGIC   COUNT(*)   AS total_transactions,
+# MAGIC   SUM(amount) AS total_amount
 # MAGIC FROM lumina_technologies.silver.cleaned_transactions
 # MAGIC GROUP BY customer_id;
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Create Gold Tables (Aggregated)
+# MAGIC ## 6. Create Gold Tables (Aggregated)
 
 # COMMAND ----------
 
@@ -304,7 +323,47 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Register MLflow Model
+# MAGIC ## 7. Grant Privileges for Lab Exercises
+# MAGIC
+# MAGIC Grant `SELECT` on bronze, silver, and gold tables to `data_platform_admins`
+# MAGIC so that the `information_schema.table_privileges` query in Section 1 returns
+# MAGIC visible results. Also grant `USE CATALOG` and `USE SCHEMA` so the privilege
+# MAGIC cascade is complete.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC GRANT USE CATALOG ON CATALOG lumina_technologies TO `data_platform_admins`;
+# MAGIC GRANT USE SCHEMA ON SCHEMA lumina_technologies.bronze TO `data_platform_admins`;
+# MAGIC GRANT USE SCHEMA ON SCHEMA lumina_technologies.silver TO `data_platform_admins`;
+# MAGIC GRANT USE SCHEMA ON SCHEMA lumina_technologies.gold TO `data_platform_admins`;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.bronze.customers TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.bronze.transactions TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.bronze.interactions TO `data_platform_admins`;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.silver.cleaned_customers TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.silver.cleaned_transactions TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.silver.cleaned_interactions TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.silver.transaction_totals TO `data_platform_admins`;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.gold.customer_health_scores TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.gold.revenue_summary TO `data_platform_admins`;
+# MAGIC GRANT EXECUTE ON FUNCTION lumina_technologies.gold.score_customer_health TO `data_platform_admins`;
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 8. Register MLflow Model
 # MAGIC
 # MAGIC Trains a trivial logistic-regression model and registers it as a UC model.
 # MAGIC The model does not need to be accurate — it just needs to exist for
@@ -359,25 +418,7 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Create Group for Ownership Transfer Demo (Section 1)
-
-# COMMAND ----------
-
-from databricks.sdk import WorkspaceClient
-
-w = WorkspaceClient()
-
-try:
-    w.groups.create(display_name="data_platform_admins")
-    print("Group 'data_platform_admins' created.")
-except Exception as e:
-    # Group already exists — this is expected on re-runs
-    print(f"Group 'data_platform_admins' already exists (or could not be created): {e}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 8. Create Restricted Schema and Table (Access-Request Demo — Section 3)
+# MAGIC ## 9. Create Restricted Schema and Table (Access-Request Demo — Section 3)
 # MAGIC
 # MAGIC This table is intentionally locked down so that attendees cannot access it.
 # MAGIC They will use the access-request workflow to request permissions during the lab.
@@ -410,7 +451,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Foreign Connection for Federation Demo (Section 6)
+# MAGIC ## 10. Foreign Connection for Federation Demo (Section 6)
 # MAGIC
 # MAGIC **This step is manual and must be done before the workshop.**
 # MAGIC
@@ -450,7 +491,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 10. Verify Setup
+# MAGIC ## 11. Verify Setup
 # MAGIC
 # MAGIC Query row counts and print a summary to confirm everything was created.
 

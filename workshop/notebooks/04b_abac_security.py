@@ -164,6 +164,34 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Part 5: Applying Masks and Filters via the UI
+# MAGIC
+# MAGIC Everything you did in Parts 1–4 with SQL can also be accomplished through the Catalog Explorer UI. This is useful for data stewards who prefer a visual workflow, or for quick ad-hoc policy changes that don't warrant a notebook.
+# MAGIC
+# MAGIC **Exercise — apply a column mask via the UI:**
+# MAGIC
+# MAGIC 1. Open **Catalog Explorer** from the left navigation bar.
+# MAGIC 2. Navigate to `lumina_technologies` → `silver` → `cleaned_customers`.
+# MAGIC 3. Click on the **Columns** tab.
+# MAGIC 4. Click on the `street_address` column.
+# MAGIC 5. In the column detail panel, locate the **Mask** section and click **Add mask**.
+# MAGIC 6. Select the existing function `lumina_technologies.silver.mask_pii`.
+# MAGIC 7. Click **Save**.
+# MAGIC
+# MAGIC **Exercise — apply a row filter via the UI:**
+# MAGIC
+# MAGIC 1. Stay on the `cleaned_customers` table detail page.
+# MAGIC 2. Click the **Row filter** tab (or locate the row filter section on the Overview tab).
+# MAGIC 3. Click **Add row filter**.
+# MAGIC 4. Select the existing function `lumina_technologies.silver.filter_by_region`.
+# MAGIC 5. Map the function parameter to the `region` column.
+# MAGIC 6. Click **Save**.
+# MAGIC
+# MAGIC **Key point:** Whether you apply masks and filters via SQL or the UI, the result is identical — both write to the same catalog metadata. The UI provides a visual summary of which columns are masked and which row filters are active, making it easy to audit a table's security posture at a glance.
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Checkpoint — Key Takeaways
 # MAGIC
 # MAGIC Take a moment to confirm your understanding before moving to Section 5.

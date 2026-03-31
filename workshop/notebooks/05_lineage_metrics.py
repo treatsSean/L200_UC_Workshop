@@ -101,27 +101,31 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC - **Lineage-tracked** — queries against a Metric View appear in the lineage graph, linking downstream consumers back to source tables
 # MAGIC
 # MAGIC The `revenue_metrics` view is defined over `revenue_summary` with three dimensions (Region, Product Category, Month) and three measures.
+# MAGIC
+# MAGIC > **Requirement:** Metric Views require Databricks Runtime 17.2+ or a SQL warehouse that supports the `WITH METRICS` syntax.
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE OR REPLACE METRIC VIEW lumina_technologies.gold.revenue_metrics
-# MAGIC AS YAML $$
-# MAGIC version: "1.1"
+# MAGIC CREATE VIEW IF NOT EXISTS lumina_technologies.gold.revenue_metrics
+# MAGIC WITH METRICS
+# MAGIC LANGUAGE YAML
+# MAGIC AS $$
+# MAGIC version: 1.1
 # MAGIC source: lumina_technologies.gold.revenue_summary
 # MAGIC dimensions:
-# MAGIC   - name: Region
+# MAGIC   - name: region
 # MAGIC     expr: region
-# MAGIC   - name: Product Category
+# MAGIC   - name: product_category
 # MAGIC     expr: product_category
-# MAGIC   - name: Month
+# MAGIC   - name: month
 # MAGIC     expr: month
 # MAGIC measures:
-# MAGIC   - name: Total Revenue
+# MAGIC   - name: total_revenue
 # MAGIC     expr: SUM(total_revenue)
-# MAGIC   - name: Average Transaction Value
+# MAGIC   - name: avg_transaction_value
 # MAGIC     expr: AVG(avg_transaction_value)
-# MAGIC   - name: Transaction Count
+# MAGIC   - name: transaction_count
 # MAGIC     expr: SUM(transaction_count)
 # MAGIC $$
 
@@ -139,17 +143,17 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT Region, MEASURE(Total Revenue), MEASURE(Transaction Count)
+# MAGIC SELECT region, MEASURE(total_revenue), MEASURE(transaction_count)
 # MAGIC FROM lumina_technologies.gold.revenue_metrics
-# MAGIC GROUP BY Region
+# MAGIC GROUP BY region
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT Product_Category, Month, MEASURE(Total Revenue), MEASURE(Average Transaction Value)
+# MAGIC SELECT product_category, month, MEASURE(total_revenue), MEASURE(avg_transaction_value)
 # MAGIC FROM lumina_technologies.gold.revenue_metrics
-# MAGIC GROUP BY Product_Category, Month
-# MAGIC ORDER BY Month, Product_Category
+# MAGIC GROUP BY product_category, month
+# MAGIC ORDER BY month, product_category
 
 # COMMAND ----------
 
@@ -167,10 +171,26 @@ print(f"Working in catalog: {CATALOG}")
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC CREATE OR REPLACE LAKEHOUSE MONITOR lumina_technologies.gold.customer_health_scores_monitor
-# MAGIC ON TABLE lumina_technologies.gold.customer_health_scores
-# MAGIC WITH (OUTPUT_SCHEMA_NAME = 'lumina_technologies.gold')
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.catalog import MonitorSnapshot
+
+w = WorkspaceClient()
+
+table_name = f"{CATALOG}.gold.customer_health_scores"
+
+try:
+    monitor = w.quality_monitors.create(
+        table_name=table_name,
+        assets_dir=f"/Workspace/Users/{spark.sql('SELECT current_user()').collect()[0][0]}/monitors",
+        output_schema_name=f"{CATALOG}.gold",
+        snapshot=MonitorSnapshot(),
+    )
+    print(f"Monitor created for {table_name}")
+except Exception as e:
+    if "already exists" in str(e).lower() or "ALREADY_EXISTS" in str(e):
+        print(f"Monitor already exists for {table_name} — skipping.")
+    else:
+        print(f"Could not create monitor: {e}")
 
 # COMMAND ----------
 
@@ -203,12 +223,12 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC
 # MAGIC Unity Catalog writes lineage metadata to system tables under `system.access`. You can query these tables programmatically to build impact analysis tools, compliance reports, or data catalog integrations.
 # MAGIC
-# MAGIC The query below retrieves all tables that contributed data to `gold.customer_health_scores` in the last 7 days. The `event_type` column distinguishes between direct writes (`CREATE`) and reads that contributed to a downstream write (`READ`).
+# MAGIC The query below retrieves all tables that contributed data to `gold.customer_health_scores` in the last 7 days. The `entity_type` column indicates the type of object involved in the lineage relationship (e.g., `TABLE`, `VIEW`).
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT source_table_full_name, target_table_full_name, event_type
+# MAGIC SELECT source_table_full_name, target_table_full_name, entity_type, event_time
 # MAGIC FROM system.access.table_lineage
 # MAGIC WHERE target_table_full_name = 'lumina_technologies.gold.customer_health_scores'
 # MAGIC   AND event_date >= current_date() - 7
@@ -278,4 +298,4 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC
 # MAGIC Unity Catalog captures lineage automatically from the query execution plan — no manual tagging, no separate metadata pipeline. Combined with Metric Views and Lakehouse Monitors, you have a complete picture of *where data comes from*, *what it means*, and *whether it is healthy*, all governed by the same access control layer you configured in earlier sections.
 # MAGIC
-# MAGIC > **Up next:** Section 6 — AI/BI Dashboards and Genie Spaces for natural language analytics over governed data.
+# MAGIC > **Up next:** Section 6 — Sharing & Federation for cross-organization and cross-platform data access.

@@ -73,18 +73,18 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 2: Grant Access to the Registered Model's Scoring Function
+# MAGIC ## Step 2: Grant Access to the Registered ML Model
 # MAGIC
-# MAGIC The ML team has registered a customer churn model (`lumina_technologies.gold.customer_churn_model`) and wrapped it in a Unity Catalog function called `score_customer_health`. This function can be called directly from SQL or Python.
+# MAGIC The ML team has registered a customer churn model (`lumina_technologies.gold.customer_churn_model`). In Unity Catalog, registered models are first-class securables — governed with the same `GRANT` syntax you use for tables and functions.
 # MAGIC
-# MAGIC **Key concept — AI assets are governed like data assets:** In Unity Catalog, functions and registered models are first-class securables. You grant access to them using the same `GRANT` syntax you use for tables. The privilege for callable objects (functions, procedures) is `EXECUTE`.
+# MAGIC **Key concept — AI assets are governed like data assets:** A data scientist cannot load or deploy a registered model unless they have been explicitly granted `SELECT` on it — just as an analyst cannot query a table without `SELECT`. The scoring function that wraps this model (`score_customer_health`) was already granted `EXECUTE` during setup, so the model and its wrapper are now independently governed.
 # MAGIC
-# MAGIC This is the heart of AI governance in Unity Catalog: a data scientist cannot invoke a model in production unless they have been explicitly granted `EXECUTE` on the function that wraps it — just as an analyst cannot query a table without `SELECT`.
+# MAGIC This uniformity is what makes AI governance tractable: your existing data access-control processes extend naturally to ML models without a separate toolchain.
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC GRANT EXECUTE ON FUNCTION lumina_technologies.gold.score_customer_health TO `data_platform_admins`;
+# MAGIC GRANT SELECT ON TABLE lumina_technologies.gold.customer_churn_model TO `data_platform_admins`;
 
 # COMMAND ----------
 

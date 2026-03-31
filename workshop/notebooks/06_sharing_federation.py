@@ -13,8 +13,9 @@
 # MAGIC - Create a foreign catalog over a federated external source
 # MAGIC - Query an external table through Unity Catalog as if it were native
 # MAGIC - Understand how UC exposes managed tables via the Iceberg REST Catalog API
-# MAGIC - Inject upstream (Snowflake) and downstream (Power BI) lineage via the BYOL API
-# MAGIC - Walk through the end-to-end lineage graph in the UI
+# MAGIC - Understand how BYOL lineage completes the provenance graph for external systems
+# MAGIC - Explore the real lineage graph built by your workshop queries — in the UI and via system tables
+# MAGIC - Trace PII column flow programmatically using `system.access.column_lineage`
 
 # COMMAND ----------
 
@@ -143,163 +144,99 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Part 3: BYOL Lineage & External Engine Reads (4 min)
+# MAGIC ## Part 3: BYOL Lineage, External Engines & Workshop Lineage Review (4 min)
 # MAGIC
-# MAGIC **Bring-Your-Own Lineage (BYOL)** lets you inject lineage metadata into Unity Catalog for data movement that UC cannot observe directly — for example, a Snowflake transform that produces a table that is later ingested into Databricks, or a Power BI dashboard that reads from a UC gold table. By injecting that metadata, you complete the end-to-end lineage graph so data stewards can trace data from its origin system all the way to its consumer, without gaps.
+# MAGIC ### Concept: Bring-Your-Own Lineage (BYOL)
 # MAGIC
-# MAGIC BYOL relationships are injected via the Databricks SDK (`w.external_lineage`) or the REST API (`/api/2.0/lineage-tracking/external-lineage`). Each relationship consists of a *source* and a *target*, each of which can be either a UC table (identified by its three-part name) or an external object (identified by its system name and a URI).
+# MAGIC Unity Catalog automatically captures lineage for every query that runs through Databricks. But data rarely lives in a single system. Your bronze tables may originate from Snowflake, your gold tables may feed Power BI dashboards, and legacy ETL tools may write files directly to cloud storage. UC cannot observe those external hops — so the lineage graph has gaps at the boundaries.
 # MAGIC
-# MAGIC Once injected, external lineage nodes appear in the Catalog Explorer lineage graph alongside native UC lineage, with a distinct icon indicating the external system.
+# MAGIC **Bring-Your-Own Lineage (BYOL)** closes those gaps. It lets you inject lineage relationships into Unity Catalog for data movement that UC cannot instrument directly. Once injected, external nodes appear in the Catalog Explorer lineage graph alongside native UC lineage, with a distinct icon indicating the external system.
+# MAGIC
+# MAGIC **How it works:**
+# MAGIC - BYOL relationships are injected via the Databricks SDK (`w.external_lineage`) or the REST API (`/api/2.0/lineage-tracking/external-lineage`).
+# MAGIC - Each relationship consists of a *source* and a *target*, each of which can be a UC table (three-part name) or an external object (system name + URI).
+# MAGIC - External lineage is additive — it does not replace or interfere with automatically captured lineage.
+# MAGIC
+# MAGIC **Example: What a complete lineage graph would look like**
+# MAGIC
+# MAGIC ```
+# MAGIC Snowflake (snowflake.crm.raw_contacts)          ← BYOL injected
+# MAGIC   └── bronze.customers                           ← auto-captured
+# MAGIC         └── silver.cleaned_customers              ← auto-captured
+# MAGIC               └── gold.customer_health_scores     ← auto-captured
+# MAGIC               └── gold.revenue_summary            ← auto-captured
+# MAGIC                     └── Power BI (revenue_dashboard)  ← BYOL injected
+# MAGIC ```
+# MAGIC
+# MAGIC The middle three hops (bronze → silver → gold) were captured automatically by UC from the queries you ran in earlier sections. Only the external boundary hops — Snowflake at the top and Power BI at the bottom — would require BYOL injection.
+# MAGIC
+# MAGIC **When to use BYOL vs. when UC captures lineage automatically:**
+# MAGIC
+# MAGIC | Scenario | Lineage method |
+# MAGIC |---|---|
+# MAGIC | Databricks notebook or job reads/writes UC tables | Automatic — UC captures it |
+# MAGIC | External engine reads via Iceberg REST Catalog API | Automatic — UC captures it |
+# MAGIC | External engine reads via Delta Sharing | Automatic — UC captures it |
+# MAGIC | Data ingested from Snowflake/Kafka/S3 by a non-UC tool | BYOL injection needed |
+# MAGIC | Downstream dashboard (Power BI, Tableau) reads from UC | BYOL injection needed |
+# MAGIC | Legacy ETL writes files directly to cloud storage | BYOL injection needed |
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Step 7: Inject Upstream Lineage (Snowflake → Bronze)
+# MAGIC ### Step 7: Explore the Lineage You Built in This Workshop
 # MAGIC
-# MAGIC The `lumina_technologies.bronze.customers` table was originally loaded from a Snowflake CRM system. UC did not observe that ingestion, so the lineage graph currently shows `bronze.customers` with no upstream. We inject that relationship here.
+# MAGIC Rather than injecting synthetic external lineage, let's explore the real lineage that UC captured automatically from the queries you ran in earlier sections. This is the lineage your platform team would use for impact analysis, compliance audits, and debugging data quality issues.
 # MAGIC
-# MAGIC > **SDK version note:** The `external_lineage` API and its import paths may vary across Databricks SDK versions. The cell uses `try/except` to handle import variations gracefully and falls back to the REST API if the SDK path is unavailable.
-
-# COMMAND ----------
-
-try:
-    from databricks.sdk import WorkspaceClient
-    from databricks.sdk.service.catalog import (
-        CreateExternalLineageRequest,
-        ExternalLineageObject,
-        ExternalLineageObjectType,
-    )
-
-    w = WorkspaceClient()
-
-    w.external_lineage.create_external_lineage_relationship(
-        source=ExternalLineageObject(
-            name="snowflake.crm.raw_contacts",
-            system="snowflake",
-            object_type=ExternalLineageObjectType.TABLE,
-        ),
-        target=ExternalLineageObject(
-            name="lumina_technologies.bronze.customers",
-            object_type=ExternalLineageObjectType.TABLE,
-        ),
-    )
-    print("[OK] Upstream Snowflake → bronze.customers lineage injected via SDK.")
-
-except ImportError:
-    # Fall back to the REST API if the SDK does not yet expose this path
-    from databricks.sdk import WorkspaceClient
-    w = WorkspaceClient()
-    body = {
-        "source": {
-            "external_system": "snowflake",
-            "external_object": "snowflake://lumina_demo.snowflakecomputing.com/CRM/CRM_SCHEMA/raw_contacts",
-        },
-        "target": {
-            "table_full_name": "lumina_technologies.bronze.customers",
-        },
-    }
-    try:
-        w.api_client.do("POST", "/api/2.0/lineage-tracking/external-lineage", body=body)
-        print("[OK] Upstream Snowflake → bronze.customers lineage injected via REST API.")
-    except Exception as e:
-        print(f"[WARN] REST fallback also failed: {e}")
-
-except Exception as e:
-    print(f"[WARN] Could not inject upstream lineage: {e}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Step 8: Inject Downstream Lineage (Gold → Power BI)
-# MAGIC
-# MAGIC The `lumina_technologies.gold.revenue_summary` table feeds a Power BI dashboard. That consumption is invisible to UC, so the lineage graph currently shows `gold.revenue_summary` with no downstream. We complete the graph by injecting the downstream relationship.
-
-# COMMAND ----------
-
-try:
-    from databricks.sdk import WorkspaceClient
-    from databricks.sdk.service.catalog import (
-        CreateExternalLineageRequest,
-        ExternalLineageObject,
-        ExternalLineageObjectType,
-    )
-
-    w = WorkspaceClient()
-
-    w.external_lineage.create_external_lineage_relationship(
-        source=ExternalLineageObject(
-            name="lumina_technologies.gold.revenue_summary",
-            object_type=ExternalLineageObjectType.TABLE,
-        ),
-        target=ExternalLineageObject(
-            name="powerbi.workspace.revenue_dashboard",
-            system="powerbi",
-            object_type=ExternalLineageObjectType.DASHBOARD,
-        ),
-    )
-    print("[OK] Downstream gold.revenue_summary → Power BI lineage injected via SDK.")
-
-except ImportError:
-    from databricks.sdk import WorkspaceClient
-    w = WorkspaceClient()
-    body = {
-        "source": {
-            "table_full_name": "lumina_technologies.gold.revenue_summary",
-        },
-        "target": {
-            "external_system": "powerbi",
-            "external_object": "powerbi://app.powerbi.com/groups/lumina-workspace/datasets/revenue_dashboard",
-        },
-    }
-    try:
-        w.api_client.do("POST", "/api/2.0/lineage-tracking/external-lineage", body=body)
-        print("[OK] Downstream gold.revenue_summary → Power BI lineage injected via REST API.")
-    except Exception as e:
-        print(f"[WARN] REST fallback also failed: {e}")
-
-except Exception as e:
-    print(f"[WARN] Could not inject downstream lineage: {e}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Step 9: View the End-to-End Lineage Graph in the UI
-# MAGIC
-# MAGIC **Instructor walkthrough (~2 min):**
+# MAGIC **Exercise — view lineage in Catalog Explorer:**
 # MAGIC
 # MAGIC 1. Open **Catalog** in the left navigation bar.
-# MAGIC 2. Navigate to `lumina_technologies` → `gold` → `revenue_summary`.
+# MAGIC 2. Navigate to `lumina_technologies` → `gold` → `customer_health_scores`.
 # MAGIC 3. Click the **Lineage** tab.
-# MAGIC 4. You should see the full end-to-end chain:
-# MAGIC
-# MAGIC ```
-# MAGIC Snowflake (snowflake.crm.raw_contacts)
-# MAGIC   └── bronze.customers
-# MAGIC         └── silver.cleaned_customers
-# MAGIC               └── gold.customer_health_scores
-# MAGIC               └── gold.revenue_summary
-# MAGIC                     └── Power BI (powerbi.workspace.revenue_dashboard)
-# MAGIC ```
-# MAGIC
-# MAGIC 5. Click on the Snowflake node — notice it shows the external system name and object URI, not a UC three-part name.
-# MAGIC 6. Click on the Power BI node — same pattern for the downstream consumer.
-# MAGIC 7. Point out that the native UC lineage (bronze → silver → gold) was captured automatically; only the external boundary hops required BYOL injection.
-# MAGIC
-# MAGIC > **Key insight:** The lineage graph is now complete. A data steward auditing `revenue_summary` can trace data provenance all the way back to the originating Snowflake CRM table — and trace forward to every dashboard consuming it — without leaving Unity Catalog.
+# MAGIC 4. You should see upstream sources:
+# MAGIC    - `silver.cleaned_customers` → `gold.customer_health_scores`
+# MAGIC    - `silver.transaction_totals` → `gold.customer_health_scores`
+# MAGIC    - `silver.cleaned_interactions` → `gold.customer_health_scores`
+# MAGIC    - The `score_customer_health` UC function linked to the table
+# MAGIC 5. Click **See column-level lineage** and select `health_score` to confirm it traces back to the UC function.
+# MAGIC 6. Navigate to `gold.revenue_summary` and check its lineage to see the join between `silver.cleaned_transactions` and `silver.cleaned_customers`.
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Step 10: External Engine Consistency
+# MAGIC ### Step 8: Query Lineage Programmatically
 # MAGIC
-# MAGIC When an external engine (Trino, Flink, a custom Python script, a third-party ETL tool) reads from or writes to a UC-managed table using the Iceberg REST Catalog API or Delta Sharing, Unity Catalog records that access in its audit and lineage systems just as it would for a native Databricks query.
-# MAGIC
-# MAGIC This means:
-# MAGIC - **Audit:** `system.access.audit` captures reads and writes from external engines that authenticate through UC.
-# MAGIC - **Lineage:** Read operations from external engines appear as downstream nodes in the lineage graph automatically (no BYOL injection required for engines that go through the UC API).
-# MAGIC - **Governance:** Row-level security filters and column masks defined in UC are enforced for external engine reads that go through the Iceberg REST endpoint — the engine receives only the rows and columns it is authorized to see.
-# MAGIC
-# MAGIC BYOL injection is only needed for external systems that connect directly to cloud storage (bypassing UC entirely) or for systems that have no UC integration — for example, a legacy on-premises ETL tool that writes files directly to S3 before a Databricks job picks them up.
+# MAGIC The lineage you just viewed in the UI is also queryable via `system.access.table_lineage`. This is what you would use to build automated impact analysis, compliance reports, or data catalog integrations.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- All upstream sources for the gold customer health scores table
+# MAGIC SELECT source_table_full_name, target_table_full_name, entity_type, event_time
+# MAGIC FROM system.access.table_lineage
+# MAGIC WHERE target_table_full_name = 'lumina_technologies.gold.customer_health_scores'
+# MAGIC   AND event_date >= current_date() - 7
+# MAGIC ORDER BY event_time DESC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Downstream impact: everything that depends on bronze.customers
+# MAGIC SELECT DISTINCT target_table_full_name
+# MAGIC FROM system.access.table_lineage
+# MAGIC WHERE source_table_full_name = 'lumina_technologies.bronze.customers'
+# MAGIC   AND event_date >= current_date() - 7
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Column-level PII flow: trace where email, phone, and street_address ended up
+# MAGIC SELECT source_table_full_name, source_column_name,
+# MAGIC        target_table_full_name, target_column_name
+# MAGIC FROM system.access.column_lineage
+# MAGIC WHERE source_column_name IN ('email', 'phone', 'street_address')
+# MAGIC   AND event_date >= current_date() - 7
+# MAGIC ORDER BY source_column_name, target_table_full_name
 
 # COMMAND ----------
 
@@ -317,9 +254,9 @@ except Exception as e:
 # MAGIC | Lakehouse Federation | Created `external_data` foreign catalog over `workshop_federation_connection` |
 # MAGIC | External table query | Queried `external_data.public.sample_table` through UC as if it were native |
 # MAGIC | Managed Iceberg | Discussed how UC exposes Delta tables via the Iceberg REST Catalog API |
-# MAGIC | BYOL upstream | Injected Snowflake → `bronze.customers` lineage |
-# MAGIC | BYOL downstream | Injected `gold.revenue_summary` → Power BI lineage |
-# MAGIC | End-to-end lineage | Traced the full chain from external source to external consumer in the UC UI |
+# MAGIC | BYOL lineage (concept) | Understood how external lineage injection completes the provenance graph across system boundaries |
+# MAGIC | Workshop lineage review | Explored the real lineage graph built by your queries throughout this workshop — in the UI and via system tables |
+# MAGIC | PII flow tracing | Used column-level lineage to trace `email`, `phone`, and `street_address` across the pipeline |
 # MAGIC
 # MAGIC **The bigger picture:**
 # MAGIC
@@ -328,5 +265,6 @@ except Exception as e:
 # MAGIC - **Lakehouse Federation** extends governance to data sources outside Databricks, without moving data.
 # MAGIC - **Managed Iceberg** extends interoperability to non-Databricks compute engines, without forking your catalog.
 # MAGIC - **BYOL lineage** extends provenance tracking to systems that UC cannot instrument directly, completing the audit trail.
+# MAGIC - **Automatic lineage** captures every query that runs through Databricks — the lineage graph you explored was built without any manual instrumentation.
 # MAGIC
 # MAGIC > **Workshop complete.** You have walked through the full Unity Catalog governance stack: access control, data classification and tagging, discovery and domains, data integrity, row/column security, observability, and now sharing and federation. Every capability operates through the same catalog, the same privilege model, and the same lineage infrastructure.

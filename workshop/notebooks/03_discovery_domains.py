@@ -8,7 +8,7 @@
 # MAGIC **Purpose:** The tags you applied in Section 2b are only useful if people can find the assets they describe. This section introduces the two mechanisms Unity Catalog provides for that: **Domains** (logical groupings of related assets) and the **Discovery page** (a search and browse interface over catalog metadata). You will create a "Customer Analytics" domain, then use the Discovery page to find tagged assets by domain, by tag, and by asset type — all without knowing the exact three-part name of a table in advance.
 # MAGIC
 # MAGIC **What you will do:**
-# MAGIC - Create a "Customer Analytics" domain via the Python SDK (with UI fallback instructions if the API is unavailable)
+# MAGIC - Create a "Customer Analytics" domain via Catalog Explorer
 # MAGIC - Browse the Discovery page by domain and by tag
 # MAGIC - Locate the registered model and UC function created in earlier sections
 # MAGIC - Explore a table's detail page (schema, sample data, lineage preview)
@@ -25,72 +25,37 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 1: Create a Domain via the Python SDK
+# MAGIC ## Step 1: Create a Domain in Catalog Explorer
 # MAGIC
 # MAGIC **Domains** are logical containers that let you group related Unity Catalog assets — tables, models, functions, volumes — under a single, human-readable label. They are surfaced on the Discovery page as a browse facet, so a new data engineer who does not know the schema layout can navigate to "Customer Analytics" and immediately see every asset that belongs to that domain, regardless of which schema or layer it lives in.
 # MAGIC
 # MAGIC Domains are distinct from schemas. A schema enforces a namespace boundary; a domain is a metadata-level grouping that can span multiple schemas (and even multiple catalogs). The same table can belong to only one domain at a time.
 # MAGIC
-# MAGIC The cell below uses the Databricks Python SDK to create the "Customer Analytics" domain and assign the three customer-facing tables to it. If your workspace version does not yet expose the domains API through the SDK, the cell will catch the error and print UI-based fallback instructions.
+# MAGIC ### Technical Owner vs. Business Owner
 # MAGIC
-# MAGIC **If the SDK call fails, follow these steps in the Catalog Explorer UI:**
+# MAGIC Every domain supports two ownership roles:
+# MAGIC
+# MAGIC - **Technical Owner:** The team or individual responsible for the infrastructure, pipelines, and data quality of the assets in this domain. They handle schema changes, ETL failures, performance tuning, and access control. Think: the data engineering team that builds and maintains the tables.
+# MAGIC - **Business Owner:** The team or individual accountable for the business meaning, accuracy, and usage policies of the data. They define what the data represents, approve who should have access, and ensure it meets regulatory or compliance requirements. Think: the analytics manager or data product owner who decides what "customer health score" means.
+# MAGIC
+# MAGIC Separating these roles makes it clear who to contact for a pipeline issue (technical owner) versus a question about data definitions or access approval (business owner).
+# MAGIC
+# MAGIC ### Exercise — create the "Customer Analytics" domain:
+# MAGIC
 # MAGIC 1. Open **Catalog** in the left navigation bar.
 # MAGIC 2. Click **Domains** in the left panel (below the catalog tree).
 # MAGIC 3. Click **Create domain**.
-# MAGIC 4. Enter `Customer Analytics` as the name and an optional description.
-# MAGIC 5. Click **Create**.
-# MAGIC 6. Inside the new domain, click **Add assets**.
-# MAGIC 7. Search for and add: `lumina_technologies.bronze.customers`, `lumina_technologies.silver.cleaned_customers`, and `lumina_technologies.gold.customer_health_scores`.
-# MAGIC 8. Click **Save**.
-
-# COMMAND ----------
-
-from databricks.sdk import WorkspaceClient
-
-w = WorkspaceClient()
-
-DOMAIN_NAME = "Customer Analytics"
-DOMAIN_DESCRIPTION = (
-    "All customer-related assets across bronze, silver, and gold layers — "
-    "raw ingestion, cleaned records, and derived health scores."
-)
-
-DOMAIN_ASSETS = [
-    f"{CATALOG}.bronze.customers",
-    f"{CATALOG}.silver.cleaned_customers",
-    f"{CATALOG}.gold.customer_health_scores",
-]
-
-try:
-    # The catalog_domain API is available in SDK >= 0.22 and DBR >= 14.3.
-    # If it is not present in your workspace, the except block will fire.
-    domain = w.catalog_domains.create(
-        name=DOMAIN_NAME,
-        comment=DOMAIN_DESCRIPTION,
-    )
-    print(f"Domain created: {domain.name} (id={domain.id})")
-
-    for asset_name in DOMAIN_ASSETS:
-        w.catalog_domains.add_assets(
-            domain_id=domain.id,
-            assets=[{"full_name": asset_name}],
-        )
-        print(f"  Added asset: {asset_name}")
-
-    print("\nDomain setup complete. Browse to the Discovery page to see it.")
-
-except AttributeError:
-    print(
-        "catalog_domains API is not available in this SDK version.\n"
-        "Follow the UI fallback instructions in the %md cell above to create\n"
-        "the 'Customer Analytics' domain manually in Catalog Explorer."
-    )
-except Exception as e:
-    print(
-        f"Domain creation encountered an error: {e}\n\n"
-        "Follow the UI fallback instructions in the %md cell above to create\n"
-        "the 'Customer Analytics' domain manually in Catalog Explorer."
-    )
+# MAGIC 4. Enter `Customer Analytics` as the name.
+# MAGIC 5. Select an **icon** that represents customer data (e.g., the people or chart icon).
+# MAGIC 6. Enter a **subtitle**: `Customer data product — bronze through gold`.
+# MAGIC 7. Add a **description**: `All customer-related assets across bronze, silver, and gold layers — raw ingestion, cleaned records, and derived health scores. Supports churn analysis, health scoring, and customer segmentation use cases.`
+# MAGIC 8. Under **Source**, create a new tag: key = `source`, value = `internal`.
+# MAGIC 9. Set the **Technical Owner** to your user account (or the `data_platform_admins` group).
+# MAGIC 10. Set the **Business Owner** to your user account (in a real environment, this would be the analytics or product team lead).
+# MAGIC 11. Click **Create**.
+# MAGIC 12. Inside the new domain, click **Add assets**.
+# MAGIC 13. Search for and add: `lumina_technologies.bronze.customers`, `lumina_technologies.silver.cleaned_customers`, and `lumina_technologies.gold.customer_health_scores`.
+# MAGIC 14. Click **Save**.
 
 # COMMAND ----------
 

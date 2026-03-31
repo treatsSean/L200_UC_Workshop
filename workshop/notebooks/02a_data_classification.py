@@ -94,8 +94,8 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC 3. On the table detail page, locate the **"AI generate"** button (top-right of the Description field) and click it.
 # MAGIC 4. Review the generated table comment. Notice it infers purpose from the table name and column names without reading actual data.
 # MAGIC 5. Click **Accept** to save the generated description as the table's official comment.
-# MAGIC 6. Scroll down to the **Columns** tab. Select a column (e.g., `email`). Click **"AI generate"** next to the column description field.
-# MAGIC 7. Review and accept the column-level description.
+# MAGIC 6. Scroll down to the **Columns** tab. Click **"AI generate"** to generate descriptions for all columns in the table.
+# MAGIC 7. Review and accept the column-level descriptions.
 # MAGIC
 # MAGIC **Why this matters:** Table and column comments are first-class metadata in Unity Catalog. They are stored alongside the object definition, versioned, and surfaced in Catalog Explorer, Genie spaces, and downstream tools. AI-generated docs lower the barrier to maintaining a complete data catalog — the hardest part of governance programs is keeping documentation current.
 # MAGIC
@@ -147,28 +147,38 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 4: Automated Data Classification Engine Results
+# MAGIC ## Step 4: Enable Automated Data Classification
 # MAGIC
-# MAGIC In addition to the AI functions you called manually above, Databricks runs an automated **Data Classification engine** in the background. This engine scans table data (not just column names) and applies semantic tags — such as `PERSON_NAME`, `EMAIL`, `US_SSN`, `CREDIT_CARD` — based on pattern matching and ML-based inference.
+# MAGIC In addition to the AI functions you called manually above, Unity Catalog provides an automated **Data Classification engine** that scans table data (not just column names) and applies semantic tags — such as `PERSON_NAME`, `EMAIL_ADDRESS`, `PHONE_NUMBER` — based on pattern matching and ML-based inference.
 # MAGIC
-# MAGIC The results are written to `system.data_classification.results`, a system table that is part of the Unity Catalog observability surface.
+# MAGIC You enable classification at the catalog or schema level. Here we enable it on the `bronze` schema so all tables within it are scanned.
 # MAGIC
-# MAGIC > **Important:** The classification engine runs **asynchronously**. For a newly created table, results may take several minutes to several hours to appear, depending on table size and workspace load. If this query returns zero rows for your bronze tables, that is expected — the engine has not yet completed its scan. Re-run after a few minutes or check back at the end of the workshop.
+# MAGIC > **Important:** Classification runs **asynchronously** after enablement. It may take a few minutes for tags to appear on columns. If the follow-up query returns zero rows, wait a moment and re-run.
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER SCHEMA lumina_technologies.bronze SET TAGS ('enable_auto_classification' = 'true');
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Verify Classification Tags on the Customers Table
 # MAGIC
-# MAGIC **What the columns mean:**
-# MAGIC - `tag_name`: The semantic category detected (e.g., `PERSON_NAME`, `EMAIL`).
-# MAGIC - `tag_value`: The specific tag value, if applicable.
-# MAGIC - Results are scoped to `catalog_name` and `schema_name` to avoid cross-catalog leakage.
+# MAGIC Once the classification engine completes its scan, it writes semantic tags directly onto columns. We can inspect these tags using `information_schema.column_tags`.
+# MAGIC
+# MAGIC **What to look for:**
+# MAGIC - Columns like `email`, `phone`, `first_name`, and `last_name` should receive tags such as `EMAIL_ADDRESS`, `PHONE_NUMBER`, or `PERSON_NAME`.
+# MAGIC - These tags are governed metadata — they are visible only to principals with appropriate access to the catalog.
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC SELECT
 # MAGIC   table_name, column_name, tag_name, tag_value
-# MAGIC FROM system.data_classification.results
-# MAGIC WHERE catalog_name = 'lumina_technologies'
-# MAGIC   AND schema_name = 'bronze'
-# MAGIC ORDER BY table_name, column_name;
+# MAGIC FROM lumina_technologies.information_schema.column_tags
+# MAGIC WHERE schema_name = 'bronze' AND table_name = 'customers'
+# MAGIC ORDER BY column_name, tag_name;
 
 # COMMAND ----------
 
@@ -184,4 +194,4 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC - What is the difference between the column-name-based classification you ran in Step 3 and the data-based classification the engine runs in the background? When would you trust each?
 # MAGIC - If a colleague does not have `EXECUTE` on `ai_classify`, what does that tell you about the governance posture of your platform?
 # MAGIC
-# MAGIC **Up next — Section 2b:** Data Lineage. You will trace how data flows from bronze through silver to gold, and observe how Unity Catalog captures lineage automatically across SQL transformations and Python notebooks.
+# MAGIC **Up next — Section 2b:** Tagging & Governance Metadata. You will apply PII tags, certification status, and governance metadata across your bronze, silver, and gold layers — via both SQL and the Catalog Explorer UI.

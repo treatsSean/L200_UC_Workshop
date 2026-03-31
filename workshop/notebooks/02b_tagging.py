@@ -11,7 +11,7 @@
 # MAGIC - Apply PII tags to bronze, silver, and gold table columns based on Section 2a classification results
 # MAGIC - Learn the difference between ad-hoc tags and governed tags
 # MAGIC - Tag a certification status onto a table so data consumers know it is trustworthy
-# MAGIC - Tag the `score_customer_health` AI function the same way you tag data assets
+# MAGIC - Tag the `customer_churn_model` registered model the same way you tag data assets
 # MAGIC - Query `system.information_schema.column_tags` to verify your work
 
 # COMMAND ----------
@@ -43,6 +43,25 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC   ALTER COLUMN phone SET TAGS ('pii' = 'true', 'sensitivity_level' = 'high');
 # MAGIC ALTER TABLE lumina_technologies.bronze.customers
 # MAGIC   ALTER COLUMN street_address SET TAGS ('pii' = 'true', 'sensitivity_level' = 'medium');
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Step 1b: Apply Tags via Catalog Explorer (UI)
+# MAGIC
+# MAGIC You just applied tags using SQL — but the same tags can be applied through the Catalog Explorer UI. This is especially useful for data stewards or governance teams who prefer a visual workflow and want to tag assets at scale without writing SQL.
+# MAGIC
+# MAGIC **Exercise — try it yourself:**
+# MAGIC
+# MAGIC 1. Open **Catalog Explorer** from the left navigation bar.
+# MAGIC 2. Navigate to `lumina_technologies` → `bronze` → `transactions`.
+# MAGIC 3. Click the **Tags** tab on the table detail page.
+# MAGIC 4. Add a table-level tag: key = `team`, value = `finance`.
+# MAGIC 5. Scroll down to the **Columns** section. Click on `customer_id`.
+# MAGIC 6. In the column detail panel, add a tag: key = `pii`, value = `true`.
+# MAGIC 7. Add a second tag: key = `sensitivity_level`, value = `medium`.
+# MAGIC
+# MAGIC **Key point:** Whether you apply tags via SQL or the UI, the result is identical — both write to the same underlying Unity Catalog metadata store. Tags applied in the UI are immediately visible in `information_schema.column_tags` queries, and vice versa. Choose whichever workflow fits your team: SQL for automation and bulk operations, the UI for ad-hoc tagging and review.
 
 # COMMAND ----------
 
@@ -122,18 +141,18 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC %md
 # MAGIC ## Step 6: Tag AI Assets
 # MAGIC
-# MAGIC AI assets — registered models, UC functions, and pipelines — are first-class citizens in Unity Catalog and are tagged using the exact same `ALTER ... SET TAGS` syntax as tables. This is not incidental: it means your data governance tooling, your `information_schema` queries, and your ABAC policies apply uniformly to both data assets and AI assets without a separate governance workflow.
+# MAGIC AI assets — registered models and pipelines — are first-class citizens in Unity Catalog and can be tagged using the same governance metadata as tables. This means your `information_schema` queries and discovery workflows apply uniformly to both data assets and AI assets without a separate governance workflow.
 # MAGIC
-# MAGIC Here we tag `score_customer_health`, the SQL function wrapping the churn prediction model:
-# MAGIC - `pii = 'false'` — the function itself does not store PII (it processes inputs at call time and returns a score)
-# MAGIC - `sensitivity_level = 'low'` — the output (a health score) is not sensitive on its own
-# MAGIC - `asset_type = 'ai_function'` — a discovery tag that lets platform teams quickly enumerate all AI functions across the catalog
+# MAGIC Here we tag the `customer_churn_model` registered model:
+# MAGIC - `pii = 'false'` — the model itself does not store PII (it processes inputs at inference time and returns a score)
+# MAGIC - `sensitivity_level = 'low'` — the output (a churn prediction) is not sensitive on its own
+# MAGIC - `asset_type = 'ml_model'` — a discovery tag that lets platform teams quickly enumerate all ML models across the catalog
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC ALTER FUNCTION lumina_technologies.gold.score_customer_health
-# MAGIC   SET TAGS ('pii' = 'false', 'sensitivity_level' = 'low', 'asset_type' = 'ai_function');
+# MAGIC ALTER REGISTERED MODEL lumina_technologies.gold.customer_churn_model
+# MAGIC   SET TAGS ('pii' = 'false', 'sensitivity_level' = 'low', 'asset_type' = 'ml_model');
 
 # COMMAND ----------
 
@@ -162,11 +181,11 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC
 # MAGIC Take 60 seconds to discuss with a neighbor or reflect on the following:
 # MAGIC
-# MAGIC **Key takeaway:** Tags in Unity Catalog are not documentation — they are operational metadata. The `pii = 'true'` tags you just applied will be read by the dynamic views and column masks you build in Section 4b. The certification status badge you set is surfaced directly in the catalog UI. The `asset_type = 'ai_function'` tag is queryable by platform automation scripts. Every tag you write here has a downstream consumer, which is why governed tags (with controlled vocabularies) matter more than they might initially appear.
+# MAGIC **Key takeaway:** Tags in Unity Catalog are not documentation — they are operational metadata. The `pii = 'true'` tags you just applied will be read by the dynamic views and column masks you build in Section 4b. The certification status badge you set is surfaced directly in the catalog UI. The `asset_type = 'ml_model'` tag is queryable by platform automation scripts. Every tag you write here has a downstream consumer, which is why governed tags (with controlled vocabularies) matter more than they might initially appear.
 # MAGIC
 # MAGIC **Questions to consider:**
 # MAGIC - Who in your organization should own the governed tag vocabulary? A central data governance team, or the owners of each domain?
 # MAGIC - How would you handle PII that flows into a table through a join at query time rather than being stored in the table itself?
 # MAGIC - What is the correct certification status for a table that passes data quality checks but has no SLA?
 # MAGIC
-# MAGIC **Up next — Section 3:** Lineage & Impact Analysis. You will trace how data flows from bronze through silver into gold, and how Unity Catalog captures that lineage automatically.
+# MAGIC **Up next — Section 3:** Discovery & Domains. You will create a domain in Catalog Explorer, browse the Discovery page, and explore how tags and domains make data assets findable across the organization.
