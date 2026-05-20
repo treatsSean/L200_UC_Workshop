@@ -41,7 +41,7 @@ VOLUME_PATH = f"/Volumes/{CATALOG}/bronze/raw_files"
 # Path to CSV files in the workspace repo.
 # Dynamically resolve the current user to build the default path.
 _current_user = spark.sql("SELECT current_user()").collect()[0][0]
-_default_data_path = f"/Workspace/Users/{_current_user}/L200_UC_Workshop/workshop/data/output"
+_default_data_path = f"/Workspace/Users/{_current_user}/UC-Governance-Workshop/workshop/data/output"
 
 dbutils.widgets.text("repo_data_path", _default_data_path, "CSV Source Path")
 REPO_DATA_PATH = dbutils.widgets.get("repo_data_path")

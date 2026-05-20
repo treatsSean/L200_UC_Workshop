@@ -1,4 +1,4 @@
-# L200 Unity Catalog Workshop — Instructor Guide
+# Unity Catalog Governance Workshop — Instructor Guide
 
 This guide is for the instructor delivering the workshop. It covers timing, pacing, what to say, what to watch for, and how to recover from common problems. It is not a repeat of the notebook content.
 
@@ -274,5 +274,5 @@ Yes. Structured Streaming jobs captured in Delta Live Tables generate lineage. S
 1. Run `workshop/setup/00_setup_workspace.py` teardown section (or a separate `99_teardown_workspace.py` if available) to remove workshop artifacts from the catalog
 2. Confirm the serverless SQL warehouse is stopped to avoid idle charges
 3. Collect feedback — a 3-question form works well: (1) what was most useful, (2) what was confusing, (3) what would you add
-4. Share the L100 video walkthrough with attendees as a follow-up resource — it covers the lineage demo from a storytelling perspective rather than a hands-on one
+4. Share the Unity Catalog Fundamentals video with attendees as a follow-up resource — it covers the lineage demo from a storytelling perspective rather than a hands-on one
 5. File any issues found during delivery (broken cells, outdated syntax, timing that ran long) in the workshop repo before the next delivery

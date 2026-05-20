@@ -44,7 +44,7 @@
 # MAGIC - **Owner:** Has full control over an object and can grant privileges to others. Ownership is transferred with `ALTER ... OWNER TO`.
 # MAGIC - **Grants:** Fine-grained privileges (`SELECT`, `MODIFY`, `EXECUTE`, etc.) that owners or privileged users assign to principals (users, service principals, groups).
 # MAGIC
-# MAGIC > **L100 Reference:** If this is new territory, watch the Unity Catalog Fundamentals video in the L100 series before proceeding.
+# MAGIC > **Prerequisite:** If this is new territory, review the Unity Catalog Fundamentals overview before proceeding.
 
 # COMMAND ----------
 

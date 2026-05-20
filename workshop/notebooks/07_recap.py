@@ -1,7 +1,7 @@
 # Databricks notebook source
 
 # MAGIC %md
-# MAGIC # Workshop Recap — Unity Catalog Governance (L200)
+# MAGIC # Workshop Recap — Unity Catalog Governance
 # MAGIC
 # MAGIC Congratulations on completing the Lumina Technologies Unity Catalog Governance Workshop! This notebook summarizes what you accomplished across all six sections and provides next steps for deepening your Unity Catalog expertise.
 

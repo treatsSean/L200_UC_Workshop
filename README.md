@@ -2,7 +2,7 @@
 
 A hands-on workshop for learning Unity Catalog governance on Databricks Free edition. Uses a fictional company (Lumina Technologies) with synthetic data to walk through access control, data classification, tagging, ACID transactions, row/column security, lineage, metric views, and monitoring — all features available in the Free edition.
 
-## Workshop Sections (L200)
+## Workshop Sections
 
 | # | Topic | Time |
 |---|-------|------|
@@ -30,7 +30,7 @@ Import this repository into your Databricks workspace using **Repos** (Git folde
 
 Open `workshop/setup/00_setup_workspace.py` in your workspace:
 
-1. Verify the `repo_data_path` widget defaults to the correct path: `/Workspace/Users/<you>/L200_UC_Workshop/workshop/data/output`
+1. Verify the `repo_data_path` widget defaults to the correct path: `/Workspace/Users/<you>/UC-Governance-Workshop/workshop/data/output`
 2. Click **Run All**
 3. Wait for the verification summary — all checks should say `[OK]`
 
