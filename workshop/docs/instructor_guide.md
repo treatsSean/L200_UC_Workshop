@@ -24,11 +24,11 @@ The Lumina Technologies scenario is intentionally generic. Do not tailor the com
 Complete these steps before attendees arrive. Allow 20–30 min buffer before the scheduled start.
 
 - [ ] Run `workshop/setup/00_setup_workspace.py` end-to-end and confirm all health checks pass
-- [ ] Confirm the serverless SQL warehouse is in a **Running** state
+- [ ] Run a quick query (e.g., `SELECT 1`) to warm up serverless compute before attendees arrive
 - [ ] Manually run 2–3 SQL queries against the Lumina catalog to confirm access
 - [ ] Verify CSVs were uploaded to the volume — the setup script should handle this, but confirm:
   ```sql
-  LIST '/Volumes/lumina_technologies/raw/landing/';
+  LIST '/Volumes/lumina_technologies/bronze/raw_files/';
   ```
 - [ ] Open Catalog Explorer in the browser and verify the `lumina_technologies` catalog is visible
 - [ ] If demoing lineage in Section 5: confirm the lineage graph is populated in Catalog Explorer for `gold.customer_health_scores`
@@ -222,20 +222,20 @@ This is the longest and highest-value section. Protect the time.
 - PII tracing via lineage is a compliance use case, not just an academic one — you can answer "where does this data go?" without reading every pipeline
 
 **UI demo (instructor-led, attendees watch):**
-1. Navigate to **Catalog Explorer** → `lumina_technologies` → `customer_gold` → `customer_360`
+1. Navigate to **Catalog Explorer** → `lumina_technologies` → `gold` → `customer_health_scores`
 2. Click the **Lineage** tab
 3. Expand the full graph upstream and downstream
-4. Walk the path: bronze source tables → silver cleaned tables → gold `customer_360` → downstream dashboards
-5. Switch to **Column lineage** and click on the `email` column
-6. Trace upstream to `raw_contacts.email_address` — note the rename in the silver layer was tracked automatically
-7. Trace downstream to show the column lands in the AI/BI dashboard
+4. Walk the path: `bronze.customers` → `silver.cleaned_customers` → `gold.customer_health_scores`
+5. Point out the `score_customer_health` UC function node — it shows function-to-table lineage
+6. Switch to **Column lineage** and click on the `email` column in `silver.cleaned_customers`
+7. Trace upstream to `bronze.customers.email` — note the column was tracked automatically through the silver transformation
 
-*Talking point for step 6:* "The column was renamed from `email_address` in bronze to `email` in silver. UC tracked that rename automatically — no annotation, no lineage SDK call."
+*Talking point for step 5:* "The UC function contributed to this table. That function dependency is captured in the lineage graph — no annotation, no lineage SDK call."
 
-*Talking point for step 7:* "We can see exactly which downstream consumers receive this PII field. For a GDPR right-to-erasure request, this is the map you need."
+*Talking point for step 7:* "We can see exactly which tables contain this PII field. For a GDPR right-to-erasure request, this is the map you need."
 
 **Fallback:**
-- Metric view syntax requires DBR 17.2 or later. If the cell errors with `UNSUPPORTED_FEATURE`, confirm the cluster runtime version. The error message will include the minimum required version.
+- Metric view syntax requires a recent serverless runtime. If the cell errors with `UNSUPPORTED_FEATURE`, the feature may not yet be available in your workspace's serverless environment — skip ahead to the lineage UI walkthrough.
 - If the lineage graph in Catalog Explorer is not yet populated, note that lineage builds from query history — it may take a few minutes after running the gold table creation cells for the graph to appear.
 
 ---
@@ -244,10 +244,10 @@ This is the longest and highest-value section. Protect the time.
 
 | Issue | Likely Cause | Resolution |
 |-------|-------------|------------|
-| Serverless cluster takes 30–60s on first cell | Cold start | Normal — tell attendees this is expected and to wait |
+| Serverless compute takes 30–60s on first cell | Cold start | Normal — tell attendees this is expected and to wait |
 | `ai_gen()` / `ai_classify()` error: `AI_FUNCTIONS_DISABLED` | Workspace setting not enabled | Skip the cell; explain the function exists and the output is illustrative |
-| Multi-table transaction cell fails with `TRANSACTION_CONFLICT` | DBR version < 16 | Confirm cluster runtime is DBR 16+; update cluster config if needed |
-| Metric view `CREATE` fails with `UNSUPPORTED_FEATURE` | DBR version < 17.2 | Confirm cluster runtime is DBR 17.2+; update cluster config if needed |
+| Multi-table transaction cell fails with `TRANSACTION_CONFLICT` | Concurrent write conflict | Re-run the cell — serverless handles retries automatically in most cases |
+| Metric view `CREATE` fails with `UNSUPPORTED_FEATURE` | Feature not yet available in serverless | Skip the metric view cells and proceed to the lineage UI walkthrough |
 | Tags not visible in Catalog Explorer | Propagation delay | Refresh the browser; tags should appear within 60 seconds of the SQL command |
 | Attendee cannot see `lumina_technologies` catalog | Missing `USE CATALOG` privilege | Have attendee run: `GRANT USE CATALOG ON CATALOG lumina_technologies TO <user>` — or re-run the setup script |
 | Lineage graph not populated in Catalog Explorer | Propagation delay | Wait a few minutes after running gold table cells; refresh the page |
@@ -271,8 +271,8 @@ Yes. Structured Streaming jobs captured in Delta Live Tables generate lineage. S
 
 ## Post-Workshop
 
-1. Run `workshop/setup/00_setup_workspace.py` teardown section (or a separate `99_teardown_workspace.py` if available) to remove workshop artifacts from the catalog
-2. Confirm the serverless SQL warehouse is stopped to avoid idle charges
+1. Run `workshop/setup/99_teardown_workspace.py` to remove all workshop artifacts from the catalog
+2. Serverless compute scales to zero automatically — no manual shutdown needed
 3. Collect feedback — a 3-question form works well: (1) what was most useful, (2) what was confusing, (3) what would you add
 4. Share the Unity Catalog Fundamentals video with attendees as a follow-up resource — it covers the lineage demo from a storytelling perspective rather than a hands-on one
 5. File any issues found during delivery (broken cells, outdated syntax, timing that ran long) in the workshop repo before the next delivery
