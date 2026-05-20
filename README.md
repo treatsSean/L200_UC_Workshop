@@ -1,6 +1,6 @@
 # Unity Catalog Governance Workshop
 
-A hands-on workshop for learning Unity Catalog governance on Databricks. Uses a fictional company (Lumina Technologies) with synthetic data to walk through access control, data classification, tagging, ACID transactions, row/column security, lineage, metric views, monitoring, Delta Sharing, and Lakehouse Federation.
+A hands-on workshop for learning Unity Catalog governance on Databricks Free edition. Uses a fictional company (Lumina Technologies) with synthetic data to walk through access control, data classification, tagging, ACID transactions, row/column security, lineage, metric views, and monitoring — all features available in the Free edition.
 
 ## Workshop Sections (L200)
 
@@ -13,14 +13,12 @@ A hands-on workshop for learning Unity Catalog governance on Databricks. Uses a 
 | 4a | ACID transactions & FK constraints | 9 min |
 | 4b | Row filters & column masks (ABAC) | 11 min |
 | 5 | Lineage, metric views & monitoring | 15 min |
-| 6 | Delta Sharing & federation | 10 min |
-| 7 | Recap & next steps | 5 min |
 
 ## Prerequisites
 
-- A Databricks workspace with Unity Catalog enabled
+- A Databricks workspace with Unity Catalog enabled (Free edition is sufficient)
 - Workspace admin permissions (for setup)
-- Serverless compute enabled
+- Serverless compute (included with Free edition — no cluster configuration needed)
 
 ## Quick Start
 
@@ -80,9 +78,7 @@ Run `workshop/setup/99_teardown_workspace.py` to cleanly remove all workshop res
 │   │   ├── 03_discovery_domains.py
 │   │   ├── 04a_data_integrity.py
 │   │   ├── 04b_abac_security.py
-│   │   ├── 05_lineage_metrics.py
-│   │   ├── 06_sharing_federation.py
-│   │   └── 07_recap.py
+│   │   └── 05_lineage_metrics.py
 │   └── setup/
 │       ├── 00_setup_workspace.py   # Provisions everything
 │       └── 99_teardown_workspace.py # Clean removal

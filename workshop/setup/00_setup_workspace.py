@@ -238,7 +238,7 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 5a. Create the UC scoring function first
+# MAGIC ### 6a. Create the UC scoring function first
 # MAGIC
 # MAGIC The `score_customer_health` function is used by the gold table below, which
 # MAGIC creates lineage between the function and the table.
@@ -259,7 +259,7 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 5b. Gold — Customer Health Scores
+# MAGIC ### 6b. Gold — Customer Health Scores
 # MAGIC
 # MAGIC Joins cleaned customers, transactions, and interactions to produce a
 # MAGIC per-customer health score. Uses the UC function `score_customer_health()`
@@ -301,7 +301,7 @@ display(dbutils.fs.ls(VOLUME_PATH))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 5c. Gold — Revenue Summary
+# MAGIC ### 6c. Gold — Revenue Summary
 
 # COMMAND ----------
 
@@ -451,47 +451,7 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 10. Foreign Connection for Federation Demo (Section 6)
-# MAGIC
-# MAGIC **This step is manual and must be done before the workshop.**
-# MAGIC
-# MAGIC Federation requires a foreign connection to an external database (e.g.,
-# MAGIC PostgreSQL, MySQL, or SQL Server). This cannot be automated in a notebook
-# MAGIC because it requires external infrastructure and credentials.
-# MAGIC
-# MAGIC ### Steps to configure:
-# MAGIC
-# MAGIC 1. **Provision an external database** (e.g., a small PostgreSQL instance on
-# MAGIC    your cloud provider, or use an existing dev database).
-# MAGIC
-# MAGIC 2. **Create the foreign connection in Unity Catalog:**
-# MAGIC    ```sql
-# MAGIC    CREATE CONNECTION IF NOT EXISTS lumina_federation
-# MAGIC    TYPE POSTGRESQL
-# MAGIC    OPTIONS (
-# MAGIC      host '<your-host>',
-# MAGIC      port '5432',
-# MAGIC      user '<your-user>',
-# MAGIC      password '<your-password>'
-# MAGIC    );
-# MAGIC    ```
-# MAGIC
-# MAGIC 3. **Create a foreign catalog:**
-# MAGIC    ```sql
-# MAGIC    CREATE FOREIGN CATALOG IF NOT EXISTS lumina_external
-# MAGIC    USING CONNECTION lumina_federation
-# MAGIC    OPTIONS (database '<your-database>');
-# MAGIC    ```
-# MAGIC
-# MAGIC 4. **Verify** by querying a table from the foreign catalog:
-# MAGIC    ```sql
-# MAGIC    SELECT * FROM lumina_external.<schema>.<table> LIMIT 10;
-# MAGIC    ```
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 11. Verify Setup
+# MAGIC ## 10. Verify Setup
 # MAGIC
 # MAGIC Query row counts and print a summary to confirm everything was created.
 

@@ -11,21 +11,19 @@
 # MAGIC ### Teardown order
 # MAGIC | Step | Objects |
 # MAGIC |---|---|
-# MAGIC | 1 | Delta Share and recipient |
-# MAGIC | 2 | Foreign catalog |
-# MAGIC | 3 | Lakehouse Monitor |
-# MAGIC | 4 | Metric View |
-# MAGIC | 5 | Gold tables |
-# MAGIC | 6 | Row filters and column masks on silver tables |
-# MAGIC | 7 | Silver tables |
-# MAGIC | 8 | Tags on bronze tables |
-# MAGIC | 9 | Bronze tables |
-# MAGIC | 10 | Volume |
-# MAGIC | 11 | UC functions |
-# MAGIC | 12 | MLflow model |
-# MAGIC | 13 | Schemas |
-# MAGIC | 14 | Group |
-# MAGIC | 15 | Catalog (CASCADE) |
+# MAGIC | 1 | Lakehouse Monitor |
+# MAGIC | 2 | Metric View |
+# MAGIC | 3 | Gold tables |
+# MAGIC | 4 | Row filters and column masks on silver tables |
+# MAGIC | 5 | Silver tables |
+# MAGIC | 6 | Tags on bronze tables |
+# MAGIC | 7 | Bronze tables |
+# MAGIC | 8 | Volume |
+# MAGIC | 9 | UC functions |
+# MAGIC | 10 | MLflow model |
+# MAGIC | 11 | Schemas |
+# MAGIC | 12 | Group |
+# MAGIC | 13 | Catalog (CASCADE) |
 
 # COMMAND ----------
 
@@ -50,63 +48,12 @@ w = WorkspaceClient()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Drop Delta Share and Recipient
+# MAGIC ## 1. Drop Lakehouse Monitor
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 1: Dropping Delta Share and recipient...")
-print("=" * 60)
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC DROP SHARE IF EXISTS lumina_gold_share;
-
-# COMMAND ----------
-
-print("  Dropped share: lumina_gold_share")
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC DROP RECIPIENT IF EXISTS workshop_partner;
-
-# COMMAND ----------
-
-print("  Dropped recipient: workshop_partner")
-print("Step 1 complete.\n")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. Drop Foreign Catalog
-
-# COMMAND ----------
-
-print("=" * 60)
-print("STEP 2: Dropping foreign catalog...")
-print("=" * 60)
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC DROP CATALOG IF EXISTS external_data;
-
-# COMMAND ----------
-
-print("  Dropped catalog: external_data")
-print("Step 2 complete.\n")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 3. Drop Lakehouse Monitor
-
-# COMMAND ----------
-
-print("=" * 60)
-print("STEP 3: Dropping Lakehouse Monitor...")
+print("STEP 1: Dropping Lakehouse Monitor...")
 print("=" * 60)
 
 table_name = f"{CATALOG}.gold.customer_health_scores"
@@ -120,17 +67,17 @@ except Exception as e:
     else:
         print(f"  SKIP: {e}")
 
-print("Step 3 complete.\n")
+print("Step 1 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Drop Metric View
+# MAGIC ## 2. Drop Metric View
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 4: Dropping Metric View...")
+print("STEP 2: Dropping Metric View...")
 print("=" * 60)
 
 # COMMAND ----------
@@ -141,17 +88,17 @@ print("=" * 60)
 # COMMAND ----------
 
 print("  Dropped metric view: lumina_technologies.gold.revenue_metrics")
-print("Step 4 complete.\n")
+print("Step 2 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Drop Gold Tables
+# MAGIC ## 3. Drop Gold Tables
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 5: Dropping gold tables...")
+print("STEP 3: Dropping gold tables...")
 print("=" * 60)
 
 # COMMAND ----------
@@ -168,17 +115,17 @@ print("=" * 60)
 
 print("  Dropped: lumina_technologies.gold.customer_health_scores")
 print("  Dropped: lumina_technologies.gold.revenue_summary")
-print("Step 5 complete.\n")
+print("Step 3 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Remove Row Filters and Column Masks from Silver Tables
+# MAGIC ## 4. Remove Row Filters and Column Masks from Silver Tables
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 6: Removing row filters and column masks from silver tables...")
+print("STEP 4: Removing row filters and column masks from silver tables...")
 print("=" * 60)
 
 security_policy_statements = [
@@ -198,17 +145,17 @@ for stmt in security_policy_statements:
     except Exception as e:
         print(f"  SKIP (may not be set): {stmt[:80]}... -> {e}")
 
-print("Step 6 complete.\n")
+print("Step 4 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Drop Silver Tables
+# MAGIC ## 5. Drop Silver Tables
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 7: Dropping silver tables...")
+print("STEP 5: Dropping silver tables...")
 print("=" * 60)
 
 silver_tables = [
@@ -226,17 +173,17 @@ for table in silver_tables:
     except Exception as e:
         print(f"  SKIP: {SILVER}.{table}: {e}")
 
-print("Step 7 complete.\n")
+print("Step 5 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Remove Tags from Bronze Tables
+# MAGIC ## 6. Remove Tags from Bronze Tables
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 8: Removing tags from bronze tables...")
+print("STEP 6: Removing tags from bronze tables...")
 print("=" * 60)
 
 tag_statements = [
@@ -257,17 +204,17 @@ for stmt in tag_statements:
     except Exception as e:
         print(f"  SKIP: {stmt[:90]}... -> {e}")
 
-print("Step 8 complete.\n")
+print("Step 6 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Drop Bronze Tables
+# MAGIC ## 7. Drop Bronze Tables
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 9: Dropping bronze tables...")
+print("STEP 7: Dropping bronze tables...")
 print("=" * 60)
 
 bronze_tables = ["customers", "transactions", "interactions"]
@@ -279,17 +226,17 @@ for table in bronze_tables:
     except Exception as e:
         print(f"  SKIP: {BRONZE}.{table}: {e}")
 
-print("Step 9 complete.\n")
+print("Step 7 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 10. Drop Volume
+# MAGIC ## 8. Drop Volume
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 10: Dropping volume...")
+print("STEP 8: Dropping volume...")
 print("=" * 60)
 
 # COMMAND ----------
@@ -300,17 +247,17 @@ print("=" * 60)
 # COMMAND ----------
 
 print("  Dropped volume: lumina_technologies.bronze.raw_files")
-print("Step 10 complete.\n")
+print("Step 8 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 11. Drop UC Functions
+# MAGIC ## 9. Drop UC Functions
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 11: Dropping UC functions...")
+print("STEP 9: Dropping UC functions...")
 print("=" * 60)
 
 # COMMAND ----------
@@ -333,17 +280,17 @@ print("=" * 60)
 print("  Dropped function: lumina_technologies.silver.mask_pii")
 print("  Dropped function: lumina_technologies.silver.filter_by_region")
 print("  Dropped function: lumina_technologies.gold.score_customer_health")
-print("Step 11 complete.\n")
+print("Step 9 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 12. Delete MLflow Model
+# MAGIC ## 10. Delete MLflow Model
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 12: Deleting MLflow model...")
+print("STEP 10: Deleting MLflow model...")
 print("=" * 60)
 
 try:
@@ -368,17 +315,17 @@ try:
 except Exception as e:
     print(f"  SKIP: {e}")
 
-print("Step 12 complete.\n")
+print("Step 10 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 13. Drop Schemas
+# MAGIC ## 11. Drop Schemas
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 13: Dropping schemas...")
+print("STEP 11: Dropping schemas...")
 print("=" * 60)
 
 schemas = ["restricted", "gold", "silver", "bronze"]
@@ -390,17 +337,17 @@ for schema in schemas:
     except Exception as e:
         print(f"  SKIP: {CATALOG}.{schema}: {e}")
 
-print("Step 13 complete.\n")
+print("Step 11 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 14. Delete Group
+# MAGIC ## 12. Delete Group
 
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 14: Deleting group 'data_platform_admins'...")
+print("STEP 12: Deleting group 'data_platform_admins'...")
 print("=" * 60)
 
 try:
@@ -414,12 +361,12 @@ try:
 except Exception as e:
     print(f"  SKIP: {e}")
 
-print("Step 14 complete.\n")
+print("Step 12 complete.\n")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 15. Drop Catalog (CASCADE)
+# MAGIC ## 13. Drop Catalog (CASCADE)
 # MAGIC
 # MAGIC `CASCADE` handles any remaining objects not explicitly dropped above.
 # MAGIC Individual drops earlier in this notebook ensure clean logging; this
@@ -428,7 +375,7 @@ print("Step 14 complete.\n")
 # COMMAND ----------
 
 print("=" * 60)
-print("STEP 15: Dropping catalog lumina_technologies...")
+print("STEP 13: Dropping catalog lumina_technologies...")
 print("=" * 60)
 
 # COMMAND ----------
@@ -439,7 +386,7 @@ print("=" * 60)
 # COMMAND ----------
 
 print("  Dropped catalog: lumina_technologies")
-print("Step 15 complete.\n")
+print("Step 13 complete.\n")
 
 # COMMAND ----------
 
@@ -453,8 +400,6 @@ print("TEARDOWN COMPLETE")
 print("=" * 60)
 print()
 print("All workshop resources have been removed:")
-print("  - Delta Share (lumina_gold_share) and recipient (workshop_partner)")
-print("  - Foreign catalog (external_data)")
 print("  - Lakehouse Monitor")
 print("  - Metric View (revenue_metrics)")
 print("  - Gold tables (customer_health_scores, revenue_summary)")
