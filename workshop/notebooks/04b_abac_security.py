@@ -213,4 +213,4 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC - New tables can inherit existing policies at creation time — security is not an afterthought
 # MAGIC - `is_account_group_member()` evaluates against the querying user's identity at runtime, so the same function produces different results for different callers without any per-user configuration
 # MAGIC
-# MAGIC > **Up next:** Section 5 — Data lineage and audit with Unity Catalog's system tables.
+# MAGIC > **Up next:** Section 5 — Metric views, data quality monitoring, and automated lineage in Catalog Explorer.

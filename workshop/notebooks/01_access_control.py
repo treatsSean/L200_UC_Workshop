@@ -12,7 +12,6 @@
 # MAGIC - Grant `EXECUTE` on a UC function (a registered model's scoring wrapper)
 # MAGIC - Transfer schema ownership to a team group
 # MAGIC - Observe what an access-denied scenario looks like
-# MAGIC - Query system tables to see compute governance data
 
 # COMMAND ----------
 
@@ -120,29 +119,6 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC -- This should fail: try to query without grants
 # MAGIC -- (Instructor explains what would happen for a user without permissions)
 # MAGIC SELECT * FROM lumina_technologies.restricted.sensitive_data LIMIT 5;
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Step 5: Compute Governance via System Tables
-# MAGIC
-# MAGIC Access control is not limited to data objects. Unity Catalog's system tables expose operational metadata — including compute usage — that you can query with the same SQL interface you use for your own data.
-# MAGIC
-# MAGIC `system.billing.usage` records DBU consumption per SKU, allowing platform teams to track spending, enforce budgets, and audit which workloads are driving costs. This data is governed by Unity Catalog itself: only users with appropriate access to the `system` catalog can query it.
-# MAGIC
-# MAGIC The query below summarizes the last 7 days of usage grouped by SKU and unit — a quick operational health check.
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT
-# MAGIC   sku_name,
-# MAGIC   usage_unit,
-# MAGIC   SUM(usage_quantity) AS total_usage
-# MAGIC FROM system.billing.usage
-# MAGIC WHERE usage_date >= current_date() - 7
-# MAGIC GROUP BY sku_name, usage_unit
-# MAGIC ORDER BY total_usage DESC;
 
 # COMMAND ----------
 

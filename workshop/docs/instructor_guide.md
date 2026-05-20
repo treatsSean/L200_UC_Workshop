@@ -8,8 +8,8 @@ This guide is for the instructor delivering the workshop. It covers timing, paci
 
 | | |
 |---|---|
-| **Total time** | 95 min |
-| **Format** | 15 min intro → 75 min hands-on lab → 5 min Q&A |
+| **Total time** | 85 min |
+| **Format** | 15 min intro → 65 min hands-on lab → 5 min Q&A |
 | **Audience** | Data engineers, data platform admins |
 | **Lab format** | Pre-built notebooks; attendees execute cells and observe output |
 | **Compute** | Serverless notebooks + serverless SQL warehouse |
@@ -26,20 +26,14 @@ Complete these steps before attendees arrive. Allow 20–30 min buffer before th
 - [ ] Run `workshop/setup/00_setup_workspace.py` end-to-end and confirm all health checks pass
 - [ ] Confirm the serverless SQL warehouse is in a **Running** state
 - [ ] Manually run 2–3 SQL queries against the Lumina catalog to confirm access
-- [ ] Confirm the foreign connection is configured (if the Section 6 federation demo is in scope)
 - [ ] Verify CSVs were uploaded to the volume — the setup script should handle this, but confirm:
   ```sql
   LIST '/Volumes/lumina_technologies/raw/landing/';
   ```
-- [ ] Confirm system tables are accessible:
-  ```sql
-  SELECT * FROM system.billing.usage LIMIT 5;
-  SELECT * FROM system.access.table_lineage LIMIT 5;
-  ```
 - [ ] Open Catalog Explorer in the browser and verify the `lumina_technologies` catalog is visible
-- [ ] If demoing lineage in Section 5: confirm the lineage graph is populated in Catalog Explorer for `customer_gold.customer_360`
+- [ ] If demoing lineage in Section 5: confirm the lineage graph is populated in Catalog Explorer for `gold.customer_health_scores`
 
-> **If setup fails:** The most common cause is a missing privilege on `system.billing.usage`. Verify the workspace has system table access enabled in Account Console → Unity Catalog settings.
+> **If setup fails:** Re-run the setup notebook and check the verification summary at the end for specific failures.
 
 ---
 
@@ -55,9 +49,8 @@ Complete these steps before attendees arrive. Allow 20–30 min buffer before th
 | 4a: Data Integrity | `04a_data_integrity.py` | 9 min |
 | 4b: Row/Column Security & ABAC | `04b_abac_security.py` | 11 min |
 | 5: Metric Views & Lineage | `05_lineage_metrics.py` | 15 min |
-| 6: Sharing & Federation | `06_sharing_federation.py` | 10 min |
 | Q&A | — | 5 min |
-| **Total** | | **95 min** |
+| **Total** | | **85 min** |
 
 Sections 3 and 4a are the shortest. If you are running behind, those are the best places to tighten. Section 5 is the longest and contains the most UI-heavy demo — protect that time.
 
@@ -90,8 +83,6 @@ Yes — `USE CATALOG` and `USE SCHEMA` allow navigation, but `SELECT` must be gr
 
 **Watch for:** Attendees sometimes confuse the `lumina_technologies` catalog owner with the workshop user. The setup script grants specific privileges rather than making attendees owners — this is intentional to demonstrate the grant model.
 
-**Fallback:** If `system.billing.usage` returns zero rows, note that usage data may take time to populate in new workspaces. The cell will not error — it will just return an empty result. Move on.
-
 ---
 
 ### Section 2a: Loading Data & AI Classification (8 min)
@@ -102,7 +93,6 @@ Yes — `USE CATALOG` and `USE SCHEMA` allow navigation, but `SELECT` must be gr
 **Key talking points:**
 - `ai_gen()` and `ai_classify()` are SQL functions that call foundation models — no Python, no external API calls, no MLflow required
 - AI-generated documentation (table and column descriptions) is stored in the catalog and surfaced in Catalog Explorer — it is not ephemeral
-- The Data Classification engine is a separate automated scan — it runs asynchronously on tables and applies sensitivity tags without user-written code
 
 **UI demo (instructor-led, attendees watch):**
 1. Navigate to any table in `lumina_technologies` in Catalog Explorer
@@ -118,7 +108,6 @@ It is stored in the Unity Catalog metastore as the table comment. It is queryabl
 
 **Fallback:**
 - `ai_gen()` and `ai_classify()` require AI functions to be enabled at the workspace level. If they return an error (`AI_FUNCTIONS_DISABLED`), acknowledge the setting and skip to the next cell. The exercise is illustrative — the output is pre-populated for attendees who cannot run it live.
-- Data Classification results may be empty on tables created during the workshop. The scan runs on a delay (hours, not minutes). Pre-populate an example if you want a visual during the workshop.
 
 ---
 
@@ -246,38 +235,8 @@ This is the longest and highest-value section. Protect the time.
 *Talking point for step 7:* "We can see exactly which downstream consumers receive this PII field. For a GDPR right-to-erasure request, this is the map you need."
 
 **Fallback:**
-- Lineage system tables (`system.access.table_lineage`, `system.access.column_lineage`) may lag 15–30 minutes after the pipeline runs. If queries return zero rows, use the Catalog Explorer UI graph instead — it updates faster.
 - Metric view syntax requires DBR 17.2 or later. If the cell errors with `UNSUPPORTED_FEATURE`, confirm the cluster runtime version. The error message will include the minimum required version.
-
----
-
-### Section 6: Sharing & Federation (10 min)
-
-**Notebook:** `06_sharing_federation.py`
-**Timing:** 2 min talking points, 8 min hands-on
-
-**Key talking points:**
-- Delta Sharing is an open protocol — recipients do not need a Databricks account
-- Federation (Lakehouse Federation) lets you query external databases (Snowflake, PostgreSQL, MySQL, etc.) from Databricks without moving the data
-- BYOL (Bring Your Own Lineage) lets you register lineage edges for systems that don't generate lineage natively — a Snowflake → Databricks → Power BI flow appears in the Catalog Explorer lineage graph
-- Managed Iceberg: UC can serve Delta tables as Iceberg to external consumers — consumers see a native Iceberg table, the underlying format is Delta
-
-**The federation demo requires a pre-configured foreign connection.** Confirm during the pre-workshop checklist that the connection exists. If it does not:
-- Skip the `CREATE FOREIGN CATALOG` and federation query cells
-- Acknowledge verbally: "In a production workspace, this is where you would configure the connection to Snowflake/PostgreSQL. We'll skip execution and walk through the syntax."
-- The BYOL lineage cells do not require the connection — those can still be demonstrated
-
-**Common questions:**
-
-> "Does the recipient need to be a Databricks customer?"
-
-No. Delta Sharing is an open REST protocol. Recipients can consume shares using the open-source Delta Sharing Python client, Spark, or any BI tool with a Delta Sharing connector.
-
-> "Does federation move the data into Databricks?"
-
-No. Queries are pushed down to the foreign system where possible. Results are returned to Databricks but not persisted. If you want persistence, use `CREATE TABLE AS SELECT` from the foreign table.
-
-**Watch for:** The BYOL lineage SDK import path (`from databricks.sdk.service.catalog import ...`) may differ between SDK versions. The notebook includes a REST API fallback — if the SDK import fails, run the REST cell instead. Both produce the same result.
+- If the lineage graph in Catalog Explorer is not yet populated, note that lineage builds from query history — it may take a few minutes after running the gold table creation cells for the graph to appear.
 
 ---
 
@@ -286,16 +245,12 @@ No. Queries are pushed down to the foreign system where possible. Results are re
 | Issue | Likely Cause | Resolution |
 |-------|-------------|------------|
 | Serverless cluster takes 30–60s on first cell | Cold start | Normal — tell attendees this is expected and to wait |
-| `system.billing.usage` returns zero rows | Workspace is new or access not granted | Acknowledge and move on; tell attendees data populates over time |
-| `system.access.table_lineage` returns zero rows | Lineage propagation lag (15–30 min) | Use Catalog Explorer UI lineage graph instead |
 | `ai_gen()` / `ai_classify()` error: `AI_FUNCTIONS_DISABLED` | Workspace setting not enabled | Skip the cell; explain the function exists and the output is illustrative |
-| Data Classification results empty | Scan runs asynchronously (hours) | Pre-populate an example result before the workshop if a visual is needed |
 | Multi-table transaction cell fails with `TRANSACTION_CONFLICT` | DBR version < 16 | Confirm cluster runtime is DBR 16+; update cluster config if needed |
 | Metric view `CREATE` fails with `UNSUPPORTED_FEATURE` | DBR version < 17.2 | Confirm cluster runtime is DBR 17.2+; update cluster config if needed |
-| BYOL lineage SDK import fails | SDK version mismatch | Run the REST API fallback cell in the notebook |
-| Federation `CREATE FOREIGN CATALOG` fails | Connection not configured | Skip execution; walk through syntax verbally |
 | Tags not visible in Catalog Explorer | Propagation delay | Refresh the browser; tags should appear within 60 seconds of the SQL command |
 | Attendee cannot see `lumina_technologies` catalog | Missing `USE CATALOG` privilege | Have attendee run: `GRANT USE CATALOG ON CATALOG lumina_technologies TO <user>` — or re-run the setup script |
+| Lineage graph not populated in Catalog Explorer | Propagation delay | Wait a few minutes after running gold table cells; refresh the page |
 
 ---
 
@@ -311,9 +266,6 @@ Yes, via upgrade in place or by registering external tables in UC. Tables remain
 
 **"Does lineage work for streaming pipelines?"**
 Yes. Structured Streaming jobs captured in Delta Live Tables generate lineage. Standalone Structured Streaming jobs outside of DLT also generate lineage as long as they write to UC-managed tables.
-
-**"What's the latency on lineage system tables?"**
-Typically 15–30 minutes. For real-time lineage visualization, use Catalog Explorer — it updates faster than the system tables.
 
 ---
 

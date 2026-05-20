@@ -146,4 +146,4 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC - If discoverability is intentionally separate from access, how do you prevent sensitive metadata (column names, comments) from leaking information you did not intend to share?
 # MAGIC - Who should have the ability to create domains and assign assets to them — central governance, domain owners, or anyone with `USE CATALOG`?
 # MAGIC
-# MAGIC **Up next — Section 4a:** Data Quality & Expectations. You will add Delta Live Tables expectations to the bronze-to-silver pipeline to enforce row-level quality constraints and quarantine bad records before they propagate downstream.
+# MAGIC **Up next — Section 4a:** Data Integrity. You will build silver-layer transformations, execute multi-table ACID transactions with automatic rollback, and add foreign key constraints enforced by the catalog.
