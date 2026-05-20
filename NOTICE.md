@@ -1,7 +1,7 @@
 # NOTICE
 
 Unity Catalog Governance Workshop
-Copyright (2025) Databricks, Inc.
+Copyright (2025-2026) Databricks, Inc.
 
 This product includes software developed at Databricks (https://www.databricks.com/).
 
