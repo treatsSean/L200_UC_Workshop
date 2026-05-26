@@ -12,8 +12,8 @@
 # MAGIC - Verify row counts across the silver layer
 # MAGIC - Use Time Travel to inspect table history and verify atomic writes
 # MAGIC - Use RESTORE to roll back a table to a previous version
-# MAGIC - Add a foreign key constraint between two silver tables
-# MAGIC - Attempt a foreign key violation and observe the enforcement
+# MAGIC - Add primary key and foreign key constraints between silver tables
+# MAGIC - Verify constraints appear in catalog metadata and Catalog Explorer
 
 # COMMAND ----------
 
@@ -131,7 +131,7 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC
 # MAGIC In this step we will:
 # MAGIC 1. Check the current version of `cleaned_transactions`
-# MAGIC 2. Apply a 5% price increase to electronics purchases
+# MAGIC 2. Apply a 5% price increase to Cloud Platform purchases
 # MAGIC 3. Use Time Travel to query the table **before** the update and confirm the old values are still accessible
 
 # COMMAND ----------
@@ -154,24 +154,24 @@ print(f"Current version before update: {pre_update_version}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- Apply a 5% price increase to electronics purchases
+# MAGIC -- Apply a 5% price increase to Cloud Platform purchases
 # MAGIC UPDATE lumina_technologies.silver.cleaned_transactions
 # MAGIC SET amount = amount * 1.05
-# MAGIC WHERE transaction_type = 'purchase' AND product_category = 'electronics';
+# MAGIC WHERE transaction_type = 'purchase' AND product_category = 'Cloud Platform';
 
 # COMMAND ----------
 
 # Compare current vs. previous version using Time Travel
 current_df = spark.sql("""
-    SELECT 'current' AS version, AVG(amount) AS avg_electronics_amount
+    SELECT 'current' AS version, AVG(amount) AS avg_cloud_platform_amount
     FROM lumina_technologies.silver.cleaned_transactions
-    WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+    WHERE transaction_type = 'purchase' AND product_category = 'Cloud Platform'
 """)
 
 previous_df = spark.sql(f"""
-    SELECT 'previous' AS version, AVG(amount) AS avg_electronics_amount
+    SELECT 'previous' AS version, AVG(amount) AS avg_cloud_platform_amount
     FROM lumina_technologies.silver.cleaned_transactions VERSION AS OF {pre_update_version}
-    WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+    WHERE transaction_type = 'purchase' AND product_category = 'Cloud Platform'
 """)
 
 display(current_df.union(previous_df))
@@ -201,10 +201,10 @@ print(f"Restored to version {pre_update_version}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- Verify the restore: electronics amounts should be back to their original values
+# MAGIC -- Verify the restore: Cloud Platform amounts should be back to their original values
 # MAGIC SELECT transaction_type, product_category, AVG(amount) AS avg_amount
 # MAGIC FROM lumina_technologies.silver.cleaned_transactions
-# MAGIC WHERE transaction_type = 'purchase' AND product_category = 'electronics'
+# MAGIC WHERE transaction_type = 'purchase' AND product_category = 'Cloud Platform'
 # MAGIC GROUP BY transaction_type, product_category;
 
 # COMMAND ----------
@@ -216,17 +216,35 @@ print(f"Restored to version {pre_update_version}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 5: Add a Foreign Key Constraint
+# MAGIC ## Step 5: Add Primary Key and Foreign Key Constraints
 # MAGIC
-# MAGIC Unity Catalog enforces referential integrity through foreign key constraints. Once a constraint is added, any INSERT or UPDATE that would create an orphaned reference — a transaction row whose `customer_id` does not exist in `cleaned_customers` — will be rejected by the catalog.
+# MAGIC Unity Catalog supports primary key and foreign key constraints on Delta tables. These constraints are **informational** — they are not enforced at write time, but they serve three important purposes:
 # MAGIC
-# MAGIC This enforcement happens at the **catalog level**, not inside your application code, which means it applies uniformly regardless of which tool or principal writes to the table.
+# MAGIC 1. **Query optimization:** The query planner uses constraint metadata to eliminate unnecessary joins and improve performance.
+# MAGIC 2. **Documentation:** Catalog Explorer displays relationship diagrams derived from FK metadata, making schema relationships visible to consumers.
+# MAGIC 3. **Lineage enrichment:** UC uses constraint metadata to enrich lineage graphs with relationship context.
 # MAGIC
-# MAGIC > **Re-run note:** If you run this notebook more than once, the `ADD CONSTRAINT` statement will fail if the constraint already exists. That is expected — the constraint is already in place. You can ignore the error and continue to Step 6.
+# MAGIC > **Important:** Unlike a traditional RDBMS, Delta Lake does not reject writes that violate these constraints. Enforcement of data quality rules is handled through expectations in Lakeflow Declarative Pipelines or application-level validation. The constraints here declare the *intended* relationships.
+# MAGIC
+# MAGIC > **Re-run note:** If you run this notebook more than once, the `ADD CONSTRAINT` statements will fail if the constraints already exist. That is expected — you can ignore the error and continue to Step 6.
 
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- First, set the primary key on cleaned_customers so it can be referenced
+# MAGIC ALTER TABLE lumina_technologies.silver.cleaned_customers
+# MAGIC ALTER COLUMN customer_id SET NOT NULL;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC ALTER TABLE lumina_technologies.silver.cleaned_customers
+# MAGIC ADD CONSTRAINT pk_customer PRIMARY KEY (customer_id);
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- Now add the foreign key referencing the primary key
 # MAGIC ALTER TABLE lumina_technologies.silver.cleaned_transactions
 # MAGIC ADD CONSTRAINT fk_customer
 # MAGIC FOREIGN KEY (customer_id) REFERENCES lumina_technologies.silver.cleaned_customers(customer_id);
@@ -234,22 +252,29 @@ print(f"Restored to version {pre_update_version}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 6: Attempt a Foreign Key Violation
+# MAGIC ## Step 6: Verify Constraints in Catalog Explorer
 # MAGIC
-# MAGIC We now try to insert a transaction row that references a customer ID that does not exist in `cleaned_customers`. Unity Catalog should reject this insert and raise a constraint violation error.
+# MAGIC The constraints you just added are visible in Catalog Explorer. Navigate to:
+# MAGIC
+# MAGIC 1. **Catalog** → `lumina_technologies` → `silver` → `cleaned_customers`
+# MAGIC 2. Click the **Schema** tab — you should see `customer_id` marked as **PK**
+# MAGIC 3. Navigate to `cleaned_transactions` — you should see the FK relationship to `cleaned_customers`
+# MAGIC
+# MAGIC You can also verify programmatically:
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC INSERT INTO lumina_technologies.silver.cleaned_transactions
-# MAGIC VALUES ('fake-txn-id', 'nonexistent-customer-id', 99.99, 'USD', 'purchase', 'test', current_date());
+# MAGIC -- View the constraints defined on cleaned_transactions
+# MAGIC SELECT constraint_name, constraint_type, enforced
+# MAGIC FROM lumina_technologies.information_schema.table_constraints
+# MAGIC WHERE table_schema = 'silver'
+# MAGIC ORDER BY table_name, constraint_type;
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC **Expected result:** The INSERT above fails with a foreign key constraint violation. The row was not written.
-# MAGIC
-# MAGIC This demonstrates that the constraint is enforced by Unity Catalog, not just documented. Any write path — notebooks, Jobs, SQL warehouses, third-party connectors — is subject to the same enforcement.
+# MAGIC Notice the `enforced` column shows `NO` — these constraints are informational. They document the intended relationships and are used by the query optimizer, but writes are not rejected for violations. For write-time enforcement, use Lakeflow Declarative Pipeline expectations or application-level validation.
 
 # COMMAND ----------
 
@@ -265,14 +290,14 @@ print(f"Restored to version {pre_update_version}")
 # MAGIC | Silver layer transformations | Cleaned, typed, and filtered bronze data into four silver tables |
 # MAGIC | Time Travel | Queried a previous table version to compare pre- and post-update state |
 # MAGIC | RESTORE rollback | Reverted the table to a prior version; the restore was recorded as a new transaction |
-# MAGIC | Foreign key constraint | UC rejected an INSERT that violated referential integrity |
+# MAGIC | PK/FK constraints | Declared primary and foreign keys; verified they appear in catalog metadata |
 # MAGIC
 # MAGIC **The bigger picture:**
 # MAGIC
 # MAGIC Unity Catalog manages catalog-level tables in open Delta format. This means:
 # MAGIC - ACID guarantees are not tied to a proprietary storage engine — they come from the Delta transaction log coordinated by UC
 # MAGIC - Time Travel and RESTORE give you full auditability and the ability to recover from bad writes without backup infrastructure
-# MAGIC - Foreign key constraints are enforced by the catalog control plane, applying uniformly to all compute and principals
-# MAGIC - Your data integrity rules live in one place (the catalog) rather than scattered across application code, ETL pipelines, or database-specific triggers
+# MAGIC - PK/FK constraints document relationships in the catalog — the optimizer uses them, Catalog Explorer displays them, and lineage leverages them
+# MAGIC - Your schema documentation lives in one place (the catalog) rather than scattered across ER diagrams, wikis, or tribal knowledge
 # MAGIC
 # MAGIC > **Up next:** Section 4b — Row-level security and column masking as the complement to structural integrity.

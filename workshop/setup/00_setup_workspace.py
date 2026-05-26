@@ -39,9 +39,23 @@ RESTRICTED = f"{CATALOG}.restricted"
 VOLUME_PATH = f"/Volumes/{CATALOG}/bronze/raw_files"
 
 # Path to CSV files in the workspace repo.
-# Dynamically resolve the current user to build the default path.
+# Dynamically resolve the current user and detect the repo folder name.
 _current_user = spark.sql("SELECT current_user()").collect()[0][0]
-_default_data_path = f"/Workspace/Users/{_current_user}/UC-Governance-Workshop/workshop/data/output"
+
+# Try common folder names — depends on how the repo was cloned or imported.
+_candidate_paths = [
+    f"/Workspace/Users/{_current_user}/UC-Governance-Workshop/workshop/data/output",
+    f"/Workspace/Users/{_current_user}/L200_UC_Workshop/workshop/data/output",
+]
+
+_default_data_path = _candidate_paths[0]
+for _path in _candidate_paths:
+    try:
+        dbutils.fs.ls(_path)
+        _default_data_path = _path
+        break
+    except Exception:
+        continue
 
 dbutils.widgets.text("repo_data_path", _default_data_path, "CSV Source Path")
 REPO_DATA_PATH = dbutils.widgets.get("repo_data_path")
@@ -52,7 +66,8 @@ try:
 except Exception:
     raise FileNotFoundError(
         f"CSV source path not found: {REPO_DATA_PATH}\n"
-        f"Update the 'repo_data_path' widget at the top of this notebook."
+        f"Update the 'repo_data_path' widget at the top of this notebook.\n"
+        f"Tried: {_candidate_paths}"
     )
 
 # COMMAND ----------

@@ -43,7 +43,7 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC ### Exercise — create the "Customer Analytics" domain:
 # MAGIC
 # MAGIC 1. Open **Catalog** in the left navigation bar.
-# MAGIC 2. Click **Domains** in the left panel (below the catalog tree).
+# MAGIC 2. Click **Discover** in the left panel (below the catalog tree).
 # MAGIC 3. Click **Create domain**.
 # MAGIC 4. Enter `Customer Analytics` as the name.
 # MAGIC 5. Select an **icon** that represents customer data (e.g., the people or chart icon).

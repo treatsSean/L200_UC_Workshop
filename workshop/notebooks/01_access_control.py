@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC **What you will do:**
 # MAGIC - Inspect existing table privileges through `information_schema`
-# MAGIC - Grant `EXECUTE` on a UC function (a registered model's scoring wrapper)
+# MAGIC - Grant `EXECUTE` on a UC function to demonstrate AI asset governance
 # MAGIC - Transfer schema ownership to a team group
 # MAGIC - Observe what an access-denied scenario looks like
 
@@ -72,18 +72,18 @@ print(f"Working in catalog: {CATALOG}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 2: Grant Access to the Registered ML Model
+# MAGIC ## Step 2: Grant Access to a UC Function (AI Asset Governance)
 # MAGIC
-# MAGIC The ML team has registered a customer churn model (`lumina_technologies.gold.customer_churn_model`). In Unity Catalog, registered models are first-class securables — governed with the same `GRANT` syntax you use for tables and functions.
+# MAGIC The ML team has created a scoring function (`lumina_technologies.gold.score_customer_health`) that wraps their churn model logic. In Unity Catalog, functions are first-class securables — governed with the same `GRANT` syntax you use for tables and views.
 # MAGIC
-# MAGIC **Key concept — AI assets are governed like data assets:** A data scientist cannot load or deploy a registered model unless they have been explicitly granted `SELECT` on it — just as an analyst cannot query a table without `SELECT`. The scoring function that wraps this model (`score_customer_health`) was already granted `EXECUTE` during setup, so the model and its wrapper are now independently governed.
+# MAGIC **Key concept — AI assets are governed like data assets:** A data scientist cannot invoke a UC function unless they have been explicitly granted `EXECUTE` on it — just as an analyst cannot query a table without `SELECT`. The `EXECUTE` privilege applies to all callable UC objects: SQL functions, Python UDFs, and model-wrapping functions alike.
 # MAGIC
-# MAGIC This uniformity is what makes AI governance tractable: your existing data access-control processes extend naturally to ML models without a separate toolchain.
+# MAGIC This uniformity is what makes AI governance tractable: your existing data access-control processes extend naturally to AI assets without a separate toolchain.
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC GRANT SELECT ON TABLE lumina_technologies.gold.customer_churn_model TO `data_platform_admins`;
+# MAGIC GRANT EXECUTE ON FUNCTION lumina_technologies.gold.score_customer_health TO `data_platform_admins`;
 
 # COMMAND ----------
 
@@ -127,7 +127,7 @@ print(f"Working in catalog: {CATALOG}")
 # MAGIC
 # MAGIC Take 60 seconds to discuss with a neighbor or reflect on the following:
 # MAGIC
-# MAGIC **Key takeaway:** Unity Catalog enforces a single, consistent security model across every asset type — tables, views, volumes, functions, and registered ML models. Granting `EXECUTE` on a scoring function is structurally identical to granting `SELECT` on a table. This uniformity is what makes AI governance tractable at scale: your data governance processes extend naturally to your AI assets without requiring a separate toolchain.
+# MAGIC **Key takeaway:** Unity Catalog enforces a single, consistent security model across every asset type — tables, views, volumes, and functions. Granting `EXECUTE` on a scoring function is structurally identical to granting `SELECT` on a table. This uniformity is what makes AI governance tractable at scale: your data governance processes extend naturally to your AI assets without requiring a separate toolchain.
 # MAGIC
 # MAGIC **Questions to consider:**
 # MAGIC - In your current environment, who owns your ML model artifacts? Is that ownership tracked in a system of record?
